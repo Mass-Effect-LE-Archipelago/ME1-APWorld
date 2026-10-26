@@ -7,7 +7,7 @@ Version 0.2 (beta test). Tested on the Steam release of Mass Effect Legendary Ed
 - Mass Effect Legendary Edition (Steam or EA app), Mass Effect 1 installed.
 - [ME3Tweaks Mod Manager](https://me3tweaks.com/modmanager/) (installs the game mod and the ASI loader).
 - [Archipelago](https://github.com/ArchipelagoMW/Archipelago/releases) 0.6.8 or newer.
-- From the [latest release](https://github.com/Unowa001/ArchipelagoME1/releases/latest):
+- From the [latest release](https://gitlab.com/unowa001/ArchipelagoME1/-/releases/permalink/latest):
   - `mass_effect_le1.apworld`: the Archipelago world and client.
   - `ArchipelagoME1-mod-<version>.zip`: the game mod (Mod Manager imports it as is; do not unzip it).
   - `ArchipelagoME1-bridge-<version>.zip`: the game bridge and its installer (unzip it).

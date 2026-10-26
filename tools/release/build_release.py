@@ -21,7 +21,7 @@ import zipfile
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 WORLD = os.path.join(REPO, "games", "masseffect1", "world", "mass_effect_le1")
 MOD_FOLDER = "DLC_MOD_ArchipelagoME1"
-SETUP_URL = "https://github.com/Unowa001/ArchipelagoME1/blob/main/worlds/mass_effect_le1/docs/setup_en.md"
+SETUP_URL = "https://gitlab.com/unowa001/ArchipelagoME1/-/blob/main/worlds/mass_effect_le1/docs/setup_en.md"
 # The galaxy-map travel videos (mass relay jump, FTL flyby) are replaced by empty files, as the "Fully Skipped" option
 # of Nexus mod 2422 does (needs Mod Manager's enhanced Bink, requested below). Each one can be kept at install time.
 SKIPPED_MOVIES = (("GLO_01_Relay.bik", "Mass Relay Jump Video", "mass relay jump video"),
