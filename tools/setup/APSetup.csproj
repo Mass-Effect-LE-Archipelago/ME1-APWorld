@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Mass Effect AP Setup</AssemblyName>
+    <RootNamespace>APSetup</RootNamespace>
+    <Version>0.3.0</Version>
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+  </PropertyGroup>
+  <PropertyGroup>
+    <!-- Path to LegendaryExplorerCore.csproj (TOC writing); override with -p:LexCoreProject=... -->
+    <LexCoreProject Condition="'$(LexCoreProject)' == ''">..\..\vendor\LegendaryExplorer\LegendaryExplorer\LegendaryExplorerCore\LegendaryExplorerCore.csproj</LexCoreProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(LexCoreProject)" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- option schemas exported from the worlds (tools/setup/export_options.py); world tests keep them in sync -->
+    <EmbeddedResource Include="options-me1.json" LogicalName="options-me1.json" />
+    <EmbeddedResource Include="options-me2.json" LogicalName="options-me2.json" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,199 @@
+{
+ "game": "Mass Effect Legendary Edition 1",
+ "world_version": "0.2.4",
+ "minimum_ap_version": "0.6.8",
+ "groups": [
+  {
+   "name": "Goal",
+   "options": [
+    {
+     "key": "fragments_total",
+     "display": "Beacon Fragments in Pool",
+     "doc": "How many Prothean Beacon Fragments are shuffled into the item pool.",
+     "type": "range",
+     "default": 6,
+     "min": 1,
+     "max": 12
+    },
+    {
+     "key": "fragments_required",
+     "display": "Beacon Fragments Required",
+     "doc": "How many Prothean Beacon Fragments unlock Ilos. Lowered to the pool size if it is larger.",
+     "type": "range",
+     "default": 4,
+     "min": 1,
+     "max": 12
+    }
+   ]
+  },
+  {
+   "name": "Logic",
+   "options": [
+    {
+     "key": "required_squad_size",
+     "display": "Required Squad Size",
+     "doc": "How many squadmates logic expects before landing on a mission world (Eden Prime and the Citadel excepted).",
+     "type": "range",
+     "default": 2,
+     "min": 0,
+     "max": 2
+    },
+    {
+     "key": "mako_shuffled",
+     "display": "Shuffle the Mako",
+     "doc": "Shuffle the M35 Mako into the item pool. When off, the Mako is available from the start.\n\nMost mission worlds have a Mako section, so turning this on gates nearly everything behind one item.",
+     "type": "toggle",
+     "default": false
+    },
+    {
+     "key": "human_squad_at_citadel",
+     "display": "Kaidan and Ashley Join at the Citadel",
+     "doc": "On: Kaidan and Ashley are not items. The first Citadel arrival recruits both as in the vanilla game, and logic\ncounts them once you reach the Citadel. Off: they are items like Garrus, Wrex, Tali and Liara.",
+     "type": "toggle",
+     "default": false
+    },
+    {
+     "key": "bring_down_the_sky",
+     "display": "Include Bring Down the Sky",
+     "doc": "Include the Bring Down the Sky content (Asteroid X57).",
+     "type": "toggle",
+     "default": true
+    }
+   ]
+  },
+  {
+   "name": "Checks",
+   "options": [
+    {
+     "key": "codexsanity",
+     "display": "Codexsanity",
+     "doc": "Codex pages are checks: unlocking a page sends it.\n\nstory: pages from the Citadel, the story planets and squadmate conversations on the Normandy (94).\nfull: also Normandy crew and terminals, uncharted worlds and side-assignment transmissions (119).",
+     "type": "choice",
+     "default": "full",
+     "choices": [
+      "off",
+      "story",
+      "full"
+     ]
+    },
+    {
+     "key": "journalsanity",
+     "display": "Journalsanity",
+     "doc": "Journal entries are checks: each quest's first entry (Started) and its completion (Completed). A story choice can\nskip a completion (a failed assignment), so completions only hold filler.\n\nstory: Citadel, story planet and squadmate quests. full: also uncharted-world assignments.",
+     "type": "choice",
+     "default": "full",
+     "choices": [
+      "off",
+      "story",
+      "full"
+     ]
+    },
+    {
+     "key": "containersanity",
+     "display": "Containersanity",
+     "doc": "Containers that need no Decryption (crates, kits, ammo packs, malfunctioning objects...) are checks: opening one\nsends it. Vanilla loot stays inside.\n\nwith_drops: each container also counts once per treasure roll it makes (crates 3, kits 2, ...), all sent on open.",
+     "type": "choice",
+     "default": "on",
+     "choices": [
+      "off",
+      "on",
+      "with_drops"
+     ]
+    },
+    {
+     "key": "aid_stations",
+     "display": "Aid Stations",
+     "doc": "Aid Stations (medi-gel refills) that need no Decryption are checks: using one sends it.",
+     "type": "toggle",
+     "default": true
+    },
+    {
+     "key": "unlock_containers",
+     "display": "Unlock Containers",
+     "doc": "Containers and Aid Stations locked behind Decryption open like plain ones (no skill, no minigame), and become\nchecks under Containersanity / Aid Stations (179 more).",
+     "type": "toggle",
+     "default": true
+    },
+    {
+     "key": "finished_mission_checks",
+     "display": "Finished Mission Checks",
+     "doc": "Therum and Virmire close for good once their mission is finished, so checks left behind there are lost.\n\nfiller_only: their containers and mission-only codex pages hold filler only, so nothing important can be lost.\nany_item: they can hold anything; collect everything on Therum and Virmire before finishing those missions.",
+     "type": "choice",
+     "default": "filler_only",
+     "choices": [
+      "filler_only",
+      "any_item"
+     ]
+    },
+    {
+     "key": "shop_slots",
+     "display": "Shop Slots",
+     "doc": "Archipelago Items for sale at each merchant (ten merchants: Normandy, Citadel, Noveria, Feros, Virmire), a few\nhundred credits each. Buying one sends its item. The slots appear in a shop's stock the first time you visit it, so\nconnect the client before your first shop visit. Commander Rentola's stock on the Normandy (there only for a short\nwhile after Virmire) holds filler only; the Virmire camp follows Finished Mission Checks.",
+     "type": "range",
+     "default": 3,
+     "min": 0,
+     "max": 5
+    }
+   ]
+  },
+  {
+   "name": "Items",
+   "options": [
+    {
+     "key": "gear_pool",
+     "display": "Gear Items",
+     "doc": "How many gear items (one manufacturer's weapon, armor, bio-amp or omni-tool line each) are drawn into the pool.\n\nEvery category is represented; about one in twenty is Spectre gear. Gear arrives at a level that climbs from I to X\nas you collect it (Spectre gear is always X). Lowered to the free room in the pool.",
+     "type": "range",
+     "default": 80,
+     "min": 0,
+     "max": 243
+    },
+    {
+     "key": "upgrade_count",
+     "display": "Random Upgrades",
+     "doc": "How many Random Upgrade items (a weapon, ammo, armor or grenade mod) are in the pool. Lowered to the free room\nleft after gear.",
+     "type": "range",
+     "default": 20,
+     "min": 0,
+     "max": 100
+    }
+   ]
+  },
+  {
+   "name": "Quality of Life",
+   "options": [
+    {
+     "key": "infinite_sprint",
+     "display": "Infinite Sprint",
+     "doc": "Sprinting (storming) never runs out of stamina. Needs the LE1APBridge ASI v11 or newer (v9 and v10 leave\nShepard out of breath).",
+     "type": "toggle",
+     "default": true
+    }
+   ]
+  }
+ ],
+ "presets": {
+  "Story Focus": {
+   "codexsanity": "story",
+   "journalsanity": "story",
+   "containersanity": "off",
+   "aid_stations": false,
+   "shop_slots": 1,
+   "gear_pool": 40,
+   "upgrade_count": 10
+  },
+  "Completionist": {
+   "fragments_total": 8,
+   "fragments_required": 6,
+   "mako_shuffled": true,
+   "codexsanity": "full",
+   "journalsanity": "full",
+   "containersanity": "with_drops",
+   "aid_stations": true,
+   "unlock_containers": true,
+   "shop_slots": 5,
+   "gear_pool": 120,
+   "upgrade_count": 40
+  }
+ }
+}

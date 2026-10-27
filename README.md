@@ -2,7 +2,7 @@
 
 An [Archipelago](https://archipelago.gg) multiworld randomizer for Mass Effect 1 in Mass Effect Legendary Edition.
 
-**Status: beta test (0.2.3).** It's playable from start to finish on the Steam release (English). Expect bugs.
+**Status: beta test (0.2.4).** It's playable from start to finish on the Steam release (English). Expect bugs.
 
 ## What changes
 
@@ -22,18 +22,17 @@ coordinates, squad, checks in logic), and look for "Archipelago" callouts on the
 
 **[Setup guide](worlds/mass_effect_le1/docs/setup_en.md)**: the full install steps.
 
-1. From the [latest release](../../releases/latest), download:
-   - `mass_effect_le1.apworld`: the Archipelago world and client.
-   - `ArchipelagoME1-mod-<version>.zip`: the game mod (don't unzip it).
-   - `ArchipelagoME1-bridge-<version>.zip`: the game bridge (unzip it).
-   - `Mass Effect Legendary Edition 1.yaml` (optional): the options template.
-2. Follow the [setup guide](worlds/mass_effect_le1/docs/setup_en.md). In short:
-   - Archipelago **0.6.8 or newer**: double-click `mass_effect_le1.apworld`.
-   - ME3Tweaks Mod Manager: import and apply `ArchipelagoME1-mod-<version>.zip`, and install the ASI loader.
-   - Run `install-bridge.ps1` from the unzipped bridge to install the game bridge.
-   - **If `install-bridge.ps1` does not work, place `LE1APBridge.asi` and `LE1APBridge.checks.tsv` from the bridge's `ASI` folder in (SteamFolder\Mass Effect Legendary Edition\Game\ME1\Binaries\Win64\ASI\)**
-   - Start a **new career**, then open **Mass Effect LE1 Client** from the Archipelago Launcher and connect before you
-     open any shop.
+**Recommended: the setup app.** From the [latest release](../../releases/permalink/latest), download
+`MassEffectAPSetup-<version>-ME1.zip`, unzip it and run **Mass Effect AP Setup.exe**. It installs the world, the mod
+and the bridge (no Mod Manager needed, except once for the ASI loader and LE1 Autoload Enabler from its ASI Manager),
+writes your YAML, can run Generate, and launches the game and client. Uninstall puts every file it changed back.
+
+**Manual install:** download `mass_effect_le1.apworld`, `ArchipelagoME1-mod-<version>.zip`,
+`ArchipelagoME1-bridge-<version>.zip` and (optional) `Mass Effect Legendary Edition 1.yaml`, then follow the
+[setup guide](worlds/mass_effect_le1/docs/setup_en.md): double-click the apworld (Archipelago **0.6.8 or newer**), import
+and apply the mod zip in ME3Tweaks Mod Manager and install the ASI loader, and run `install-bridge.ps1` from the
+unzipped bridge. Start a **new career**, then open **Mass Effect LE1 Client** from the Archipelago Launcher and connect
+before you open any shop. A career from before 0.2.4: type `/bind` in the client once.
 
 Mass Effect 1 is a custom world: make your YAML in the Launcher's **Options Creator**, generate with **Generate** in
 the Launcher, then host the seed on [archipelago.gg](https://archipelago.gg/uploads) (upload the generated zip) or with

@@ -7,7 +7,10 @@ from ..client import (
     SHOP_TRANSITIONS,
     BridgeConnection,
     BridgeProtocolError,
+    BuildMismatchError,
+    DeliveryGapError,
     GameNotReadyError,
+    IdentityMismatchError,
     ID_BASE,
     ME1CommandProcessor,
     ME1Context,
@@ -18,23 +21,39 @@ from ..client import (
     sync_ilos_gate,
     evaluate_location_predicates,
     parse_plot_predicate,
-    sync_received_items,
+    sync_received_items as _sync_received_items,
     gear_level,
     upgrade_row,
     deliver_notices,
     notice_lines,
     notice_text,
     INFINITE_SPRINT_PLOT_BOOL,
+    MOD_VERSION,
     SHOP_SLOTS_PLOT_INT,
+    summary_pages,
+    SNAP_REQUEST,
+    Snapshot,
+    BridgeError,
+    seed_identity,
+    version_key,
 )
 from ..data import ITEM_NAME_TO_ID, LOCATION_NAME_TO_ID, UPGRADE
 from ..gear import GEAR_LINES
 
+ID = seed_identity("S", 0, 1)  # the identity of the test contexts (server seed "S", team 0, slot 1)
+
+
+def sync_received_items(*args, **kwargs):
+    return _sync_received_items(*args, identity=ID, **kwargs)
+
 
 class FakeBridge:
-    def __init__(self, *, bools=None, ints=None, fail_give_after=None):
+    def __init__(self, *, bools=None, ints=None, fail_give_after=None, ident=ID):
         self.bools = dict(bools or {})
-        self.ints = dict(ints or {})
+        self.ints = {2004: ident[0], 2005: ident[1], **(ints or {})}
+        self.transactions = []
+        self.bridge_version = 12
+        self.mod = "0.2.4"
         self.bool_writes = []
         self.int_writes = []
         self.gives = []
@@ -51,16 +70,53 @@ class FakeBridge:
         self.shop_labels = {}
         self.shop_clears = 0
 
-    def give_item(self, item_row, sophistication, manufacturer_row):
-        if self.fail_give_after is not None and len(self.gives) >= self.fail_give_after:
-            raise GameNotReadyError("load screen")
-        self.gives.append((item_row, sophistication, manufacturer_row))
+    def transaction(self, identity, index, delivery):
+        """Bridge v12 TXN: identity, then index, then the delivery and the index update in one step."""
+        if identity != self.identity():
+            raise IdentityMismatchError("another save was loaded")
+        current = self.ints.get(2000, 0)
+        if current > index:
+            return False
+        if current < index:
+            raise DeliveryGapError(f"ERR gap {current}")
+        op, *args = delivery.split()
+        args = [int(arg) for arg in args]
+        if op == "FLAG":
+            self.set_bool(args[0], True)
+        elif op == "GIVE":
+            if self.fail_give_after is not None and len(self.gives) >= self.fail_give_after:
+                raise GameNotReadyError("load screen")
+            self.gives.append(tuple(args))
+        elif op == "RES":
+            self.resources.append(tuple(args))
+        self.transactions.append((index, delivery))
+        self.ints[2000] = index + 1
+        return True
 
-    def add_resource(self, resource, amount):
-        self.resources.append((resource, amount))
+    def identity(self):
+        return self.ints.get(2004, 0), self.ints.get(2005, 0)
+
+    def nonce(self, value):
+        self.ints[2006] = value
+
+    def bind_identity(self, identity, nonce):
+        if self.identity() not in {(0, 0), identity}:
+            raise BridgeProtocolError("ERR bound")
+        if self.ints.get(2006) != nonce:
+            raise BridgeProtocolError("ERR changed")
+        self.ints[2004], self.ints[2005] = identity
+
+    def set_session(self, identity):
+        self.session = identity
+
+    def snapshot(self):
+        return Snapshot(self.identity(), collections.defaultdict(bool, self.bools), collections.defaultdict(int, self.ints))
 
     def ping(self):
-        pass
+        return self.bridge_version
+
+    def mod_version(self):
+        return self.mod
 
     def close(self):
         pass
@@ -117,8 +173,8 @@ class FakeBridge:
     def key_presses(self):
         if not self.v10:
             raise BridgeProtocolError("'KEYS': ERR badrequest")
-        presses, self.presses = self.presses, 0
-        return presses
+        presses, closes, self.presses, self.closes = self.presses, getattr(self, "closes", 0), 0, 0
+        return presses, closes
 
 
 class FakePipe:
@@ -212,7 +268,9 @@ class TestReceivedItems(unittest.TestCase):
 
         self.assertEqual(result, 3)
         self.assertEqual(bridge.bool_writes, [(20002, True)])
-        self.assertEqual(bridge.int_writes, [(2000, 2), (2000, 3)])
+        self.assertEqual(bridge.transactions, [(1, "NONE"), (2, "FLAG 20002")])
+        self.assertEqual(bridge.ints[2000], 3)
+        self.assertEqual(bridge.int_writes, [])  # the index moves only inside TXN
 
     def test_older_save_replays_items_without_duplicate_progress(self):
         bridge = FakeBridge(ints={2000: 0})
@@ -222,7 +280,7 @@ class TestReceivedItems(unittest.TestCase):
         sync_received_items(bridge, items)
 
         self.assertEqual(bridge.bool_writes, [(20000, True), (20001, True)])
-        self.assertEqual(bridge.int_writes, [(2000, 1), (2000, 2)])
+        self.assertEqual(bridge.ints[2000], 2)
 
     def test_index_ahead_of_server_is_not_lowered(self):
         bridge = FakeBridge(ints={2000: 7})
@@ -254,7 +312,7 @@ class TestGearDelivery(unittest.TestCase):
         self.assertEqual(bridge.gives[1], (self.SPECTRE.item_row, 10, self.SPECTRE.manufacturer_row))
         self.assertEqual(bridge.gives[2], (upgrade_row("S", 2), 10, -1))  # two of three gear lines seen
         self.assertEqual(bridge.resources, [(0, 5000), (2, 10)])
-        self.assertEqual(bridge.int_writes[-1], (2000, 5))
+        self.assertEqual(bridge.ints[2000], 5)
 
     def test_replay_from_an_older_save_gives_the_same_items_at_the_same_levels(self):
         items = [SimpleNamespace(item=ITEM_NAME_TO_ID[name]) for name in (self.PISTOL.name, UPGRADE, self.PISTOL.name)]
@@ -280,6 +338,7 @@ class TestContextPolling(unittest.IsolatedAsyncioTestCase):
     async def test_poll_sends_new_checks_and_goal(self):
         bridge = FakeBridge(bools={3569: True, 6530: True}, ints={2000: 0})
         ctx = object.__new__(ME1Context)
+        ctx.server_seed_name = "S"
         ctx.bridge = bridge
         ctx.infinite_sprint, ctx.notices, ctx.notices_enabled, ctx._fragments_noticed = False, collections.deque(), True, None
         ctx.sends_pending = collections.deque()
@@ -313,6 +372,7 @@ class TestContextPolling(unittest.IsolatedAsyncioTestCase):
     async def test_poll_without_server_slot_neither_writes_nor_sends(self):
         bridge = FakeBridge(bools={3569: True, 6530: True}, ints={2000: 0})
         ctx = object.__new__(ME1Context)
+        ctx.server_seed_name = "S"
         ctx.bridge = bridge
         ctx.infinite_sprint, ctx.notices, ctx.notices_enabled, ctx._fragments_noticed = False, collections.deque(), True, None
         ctx.sends_pending = collections.deque()
@@ -411,6 +471,7 @@ class TestNotices(unittest.TestCase):
 
     def test_item_send_texts(self):
         ctx = object.__new__(ME1Context)
+        ctx.server_seed_name = "S"
         ctx.slot, ctx.slot_info = 1, {}
         ctx.player_names = {1: "Shepard", 2: "Link"}
         ctx.item_names = SimpleNamespace(lookup_in_slot=lambda code, slot: f"item{code}@{slot}")
@@ -422,6 +483,7 @@ class TestNotices(unittest.TestCase):
 class TestNoticeLevels(unittest.TestCase):
     def make_ctx(self):
         ctx = object.__new__(ME1Context)
+        ctx.server_seed_name = "S"
         ctx.slot, ctx.slot_info = 1, {}
         ctx.player_names = {1: "Shepard", 2: "Link"}
         ctx.item_names = SimpleNamespace(lookup_in_slot=lambda code, slot: f"item{code}")
@@ -487,6 +549,7 @@ class TestNoticeLevels(unittest.TestCase):
 class TestQualityOfLifeSync(unittest.TestCase):
     def make_ctx(self, bridge, items, infinite_sprint):
         ctx = object.__new__(ME1Context)
+        ctx.server_seed_name = "S"
         ctx.bridge = bridge
         ctx.items_received = items
         ctx.slot = 1
@@ -534,6 +597,7 @@ class TestInGameTracker(unittest.TestCase):
 
     def make_ctx(self, bridge):
         ctx = object.__new__(ME1Context)
+        ctx.server_seed_name = "S"
         ctx.bridge = bridge
         ctx.items_received = []
         ctx.slot = 1
@@ -568,13 +632,26 @@ class TestInGameTracker(unittest.TestCase):
         bridge.presses = 1
         ctx._tracker_notices([])
         ctx._deliver_summary()
-        self.assertEqual(len(bridge.boxes), 1)
-        box = bridge.boxes[0]
-        self.assertEqual(box[0], "Archipelago")
-        self.assertTrue(box[1].startswith("In logic: "))
-        self.assertTrue(any(line.startswith("Locked: ") for line in box))
-        self.assertNotIn("planets)", " ".join(box))  # the box lists every uncharted planet in logic
+        for _ in range(10):  # F7 on an open page shows the next one, until the last
+            bridge.closes = 1
+            ctx._tracker_notices([])
+            ctx._deliver_summary()
+        boxes = bridge.boxes
+        self.assertTrue(boxes[0][0].startswith("Archipelago"))
+        self.assertTrue(boxes[0][1].startswith("In logic: "))
+        text = " ".join(line for box in boxes for line in box)
+        self.assertIn("Locked: ", text)
+        self.assertNotIn("planets)", text)  # the box lists every uncharted planet in logic
+        self.assertTrue(all(len(box) <= 7 and all(len(line) <= 56 for line in box) for box in boxes))
         self.assertFalse(ctx.notices)
+        if len(boxes) > 1:
+            self.assertEqual(boxes[0][0], f"Archipelago (1/{len(boxes)})")
+            self.assertEqual(boxes[0][-1], "F7: next page")
+            self.assertNotEqual(boxes[-1][-1], "F7: next page")
+        bridge.closes = 1  # F7 on the last page only closes it
+        ctx._tracker_notices([])
+        ctx._deliver_summary()
+        self.assertEqual(len(bridge.boxes), len(boxes))
 
     def test_summary_box_waits_for_a_load_screen(self):
         bridge = FakeBridge(ints={2000: 0})
@@ -647,6 +724,7 @@ class TestInGameTracker(unittest.TestCase):
 
     def test_hint_notice(self):
         ctx = object.__new__(ME1Context)
+        ctx.server_seed_name = "S"
         ctx.slot = 1
         ctx.slot_info = {}
         ctx.player_names = {1: "Shepard", 2: "Link"}
@@ -660,6 +738,7 @@ class TestInGameTracker(unittest.TestCase):
 class TestJournalSync(unittest.TestCase):
     def make_ctx(self, bridge, items=(), tracker=None):
         ctx = object.__new__(ME1Context)
+        ctx.server_seed_name = "S"
         ctx.bridge = bridge
         ctx.items_received = list(items)
         ctx.fragments_required = 4
@@ -712,6 +791,7 @@ class TestJournalSync(unittest.TestCase):
 class TestShopLabels(unittest.TestCase):
     def make_ctx(self, bridge):
         ctx = object.__new__(ME1Context)
+        ctx.server_seed_name = "S"
         ctx.bridge = bridge
         ctx.slot = 1
         ctx.slot_info = {}
@@ -755,3 +835,341 @@ class TestShopLabels(unittest.TestCase):
         bridge = BridgeConnection(opener=lambda *args: pipe)
         bridge.shop_item(20703, "Link's Hook|shot", "Archipelago item for Link: Hookshot. Useful.")
         self.assertEqual(pipe.writes[-1], b"SHOPITEM 20703 Link's Hook/shot|Archipelago item for Link: Hookshot. Useful.")
+
+
+class FakeSave:
+    def __init__(self, ints=None, bools=None):
+        self.ints, self.bools = dict(ints or {}), dict(bools or {})
+
+    def identity(self):
+        return self.ints.get(2004, 0), self.ints.get(2005, 0)
+
+
+class FakeGame:
+    """LE1APBridge v12 behind a fake pipe, following tools/le1apbridge/LE1APBridge/Plot.hpp (natively tested by
+    plot_test.cpp). `timeouts` makes the next N TXNs answer ERR timeout and stay queued: like the bridge's, they run
+    later, before the next request (possibly after `load` switched the save). `lost_replies` makes the next N TXNs run
+    and then breaks the pipe before the reply."""
+
+    def __init__(self, save=None, *, version=12, mod="0.2.4"):
+        self.save = save or FakeSave()
+        self.version, self.mod = version, mod
+        self.grants, self.requests, self.pending = [], [], []
+        self.timeouts = self.lost_replies = 0
+        self.session = None
+
+    def load(self, save):
+        self.save = save
+
+    def run(self, request, session):
+        save, (op, *args) = self.save, request.split()
+        ints, bools = save.ints, save.bools
+        if op == "GETI":
+            return f"OK {ints.get(int(args[0]), 0)}"
+        if op == "GETB":
+            return f"OK {int(bools.get(int(args[0]), False))}"
+        if op == "NONCE":
+            ints[2006] = int(args[0])
+            return "OK"
+        if op == "IDSET":
+            seed, slot, nonce = map(int, args)
+            if save.identity() == (seed, slot):
+                return "OK"
+            if save.identity() != (0, 0):
+                return "ERR bound"
+            if ints.get(2006, 0) != nonce:
+                return "ERR changed"
+            ints[2004], ints[2005] = seed, slot
+            return "OK"
+        if op == "SNAP":
+            parts = list(map(str, save.identity()))
+            for spec in args:
+                if spec[0] == "b":
+                    first, count = map(int, spec[1:].split("+"))
+                    parts.append("".join("0123456789abcdef"[sum(bools.get(first + i + b, False) << b for b in range(4)
+                                                                  if i + b < count)] for i in range(0, count, 4)))
+                else:
+                    parts.append(str(ints.get(int(spec[1:]), 0)))
+            return "OK " + " ".join(parts)
+        if op == "TXN":
+            if (int(args[0]), int(args[1])) != save.identity():
+                return "ERR identity"
+            index, current = int(args[2]), ints.get(2000, 0)
+            if current > index:
+                return "OK done"
+            if current < index:
+                return f"ERR gap {current}"
+            self.grants.append((index, " ".join(args[3:])))
+            ints[2000] = index + 1
+            return "OK applied"
+        if op in {"SETB", "SETI", "XST"}:
+            if session is None:
+                return "ERR nosession"
+            if session != save.identity():
+                return "ERR identity"
+            (bools if op != "SETI" else ints)[int(args[0])] = True if op == "XST" else int(args[1])
+            return "OK"
+        return "OK"
+
+    def handle(self, request):
+        for queued, session in self.pending:  # requests that timed out still run on the game thread
+            self.run(queued, session)
+        self.pending.clear()
+        self.requests.append(request)
+        op, *args = request.split()
+        if op == "PING":
+            return "OK pong" if self.version < 12 else f"OK pong {self.version}"
+        if op == "MODVER":
+            return f"OK {self.mod}" if self.mod else "ERR nomod"
+        if op == "SESSION":
+            self.session = (int(args[0]), int(args[1]))
+            return "OK"
+        if self.timeouts and op == "TXN":
+            self.timeouts -= 1
+            self.pending.append((request, self.session))
+            return "ERR timeout"
+        reply = self.run(request, self.session)
+        if self.lost_replies and op == "TXN":
+            self.lost_replies -= 1
+            return None
+        return reply
+
+
+class FakeGamePipe:
+    def __init__(self, game):
+        self.game, self.reply = game, None
+        game.session = None  # the bridge forgets the session of a disconnected client
+
+    def write(self, value):
+        self.reply = self.game.handle(value.decode("ascii"))
+
+    def read(self, _size):
+        if self.reply is None:
+            raise OSError("pipe broken before the reply")
+        return self.reply.encode("ascii")
+
+    def close(self):
+        pass
+
+
+def game_bridge(game):
+    return BridgeConnection(opener=lambda *_args: FakeGamePipe(game))
+
+
+def bound(**ints):
+    return FakeSave({2004: ID[0], 2005: ID[1], **{int(k[1:]): v for k, v in ints.items()}})
+
+
+class TestIdempotentDelivery(unittest.TestCase):
+    ITEMS = [SimpleNamespace(item=ID_BASE + 0x10), SimpleNamespace(item=ITEM_NAME_TO_ID["Credits"]),
+             SimpleNamespace(item=ID_BASE + 0x11)]
+
+    def test_timeout_then_retry_grants_once(self):
+        game = FakeGame(bound())
+        bridge = game_bridge(game)
+        game.timeouts = 1  # TXN 0 answers ERR timeout and runs later, as the bridge's queued request does
+        with self.assertRaises(GameNotReadyError):
+            sync_received_items(bridge, self.ITEMS)
+        self.assertEqual(sync_received_items(bridge, self.ITEMS), 3)  # next poll: rereads the index, skips TXN 0
+        self.assertEqual([index for index, _ in game.grants], [0, 1, 2])
+
+    def test_timed_out_grant_never_lands_in_another_save(self):
+        game = FakeGame(bound())
+        bridge = game_bridge(game)
+        game.timeouts = 1
+        with self.assertRaises(GameNotReadyError):
+            sync_received_items(bridge, self.ITEMS)
+        other = FakeSave({2004: 99, 2005: 1})
+        game.load(other)  # the player loads another seed's save before the queued TXN runs
+        with self.assertRaises(IdentityMismatchError):
+            sync_received_items(bridge, self.ITEMS)
+        self.assertEqual((game.grants, other.ints.get(2000, 0)), ([], 0))
+
+    def test_lost_reply_is_resent_once_and_skipped(self):
+        game = FakeGame(bound())
+        game.lost_replies = 1  # TXN 0 lands, the pipe breaks; the client reconnects and sends it again: "done"
+        self.assertEqual(sync_received_items(game_bridge(game), self.ITEMS), 3)
+        self.assertEqual([index for index, _ in game.grants], [0, 1, 2])
+        self.assertEqual(sum(r.startswith(f"TXN {ID[0]} {ID[1]} 0 ") for r in game.requests), 2)
+
+    def test_duplicate_index_is_done_not_granted(self):
+        game = FakeGame(bound())
+        bridge = game_bridge(game)
+        self.assertTrue(bridge.transaction(ID, 0, "FLAG 20000"))
+        self.assertFalse(bridge.transaction(ID, 0, "FLAG 20000"))
+        self.assertEqual(len(game.grants), 1)
+
+    def test_gap_pauses_delivery(self):
+        with self.assertRaises(DeliveryGapError):
+            game_bridge(FakeGame(bound())).transaction(ID, 2, "NONE")
+
+        class GapBridge(FakeBridge):
+            def transaction(self, identity, index, delivery):
+                raise DeliveryGapError("ERR gap 0")
+        self.assertEqual(sync_received_items(GapBridge(ints={2000: 1}), self.ITEMS), 1)  # resumes from the save next poll
+
+    def test_notices_are_not_resent(self):
+        pipes = [FakePipe(fail_write=True), FakePipe(b"OK")]
+        bridge = BridgeConnection(opener=lambda *_args: pipes.pop(0))
+        with self.assertRaises(BridgeError):
+            bridge.note("Found Medi-Gel")
+        self.assertEqual(len(pipes), 1)  # no second attempt
+
+    def test_reads_are_retried(self):
+        pipes = [FakePipe(fail_write=True), FakePipe(b"OK 0")]
+        self.assertFalse(BridgeConnection(opener=lambda *_args: pipes.pop(0)).get_bool(2505))
+
+    def test_session_is_announced_on_every_connection(self):
+        game = FakeGame(bound())
+        bridge = game_bridge(game)
+        bridge.set_session(ID)
+        bridge.set_bool(20190, True)
+        bridge.close()  # e.g. the pipe broke: the next request reconnects
+        bridge.set_bool(20191, True)
+        self.assertEqual(game.requests.count(f"SESSION {ID[0]} {ID[1]}"), 2)
+        self.assertTrue(game.save.bools[20190] and game.save.bools[20191])
+        game.load(FakeSave({2004: 99, 2005: 1}))
+        with self.assertRaises(IdentityMismatchError):  # writes never land in another seed's save
+            bridge.set_int(2001, 4)
+
+
+class TestSnapshot(unittest.TestCase):
+    def test_round_trip(self):
+        save = bound(i2000=3, i39=20)
+        save.bools.update({3569: True, 6530: True, 20101: True})
+        snapshot = game_bridge(FakeGame(save)).snapshot()
+        self.assertEqual(snapshot.identity, ID)
+        self.assertTrue(snapshot.get_bool(3569) and snapshot.get_bool(6530) and snapshot.get_bool(20101))
+        self.assertFalse(snapshot.get_bool(3570))
+        self.assertEqual((snapshot.get_int(2000), snapshot.get_int(39)), (3, 20))
+        self.assertIn(LOCATION_NAME_TO_ID["Eden Prime: Beacon Vision"], evaluate_location_predicates(snapshot))
+
+    def test_request_covers_every_predicate(self):
+        snapshot = game_bridge(FakeGame(bound())).snapshot()
+        evaluate_location_predicates(snapshot)  # a KeyError here = a predicate SNAP does not read
+        self.assertLess(len(SNAP_REQUEST), 8000)
+
+
+class TestSaveIdentity(unittest.TestCase):
+    def make_ctx(self, game, items=()):
+        ctx = object.__new__(ME1Context)
+        ctx.server_seed_name = "S"
+        ctx.bridge = game_bridge(game)
+        ctx.slot = 1
+        ctx.items_received = list(items)
+        ctx.notices_enabled = False
+        return ctx
+
+    def check(self, ctx):
+        return ctx._check_identity(ID, ctx.bridge.snapshot())
+
+    def test_fresh_save_is_bound(self):
+        game = FakeGame()
+        ctx = self.make_ctx(game)
+        self.assertFalse(self.check(ctx))  # bound now; deliveries start next poll
+        self.assertEqual(game.save.identity(), ID)
+        self.assertTrue(self.check(ctx))
+
+    def test_other_seed_is_refused_and_nothing_is_written(self):
+        game = FakeGame(FakeSave({2004: 777, 2005: 1}))
+        ctx = self.make_ctx(game, [SimpleNamespace(item=ID_BASE + 0x10)])
+        with self.assertRaises(IdentityMismatchError):
+            self.check(ctx)
+        self.assertFalse(any(r.startswith(("TXN", "IDSET", "NONCE")) for r in game.requests))
+        with self.assertRaises(IdentityMismatchError):  # a TXN aimed at another save is refused by the bridge too
+            ctx.bridge.transaction(ID, 0, "FLAG 20000")
+        self.assertEqual(game.grants, [])
+
+    def test_save_with_progress_is_not_bound(self):
+        from ..client import BIND_MAX_TRUE_LOCATIONS, LOCATION_PREDICATES
+        bools = [p.indices[0] for p in LOCATION_PREDICATES.values() if p.kind == "bool"][:BIND_MAX_TRUE_LOCATIONS + 1]
+        game = FakeGame(FakeSave(bools=dict.fromkeys(bools, True)))
+        with self.assertRaises(IdentityMismatchError):
+            self.check(self.make_ctx(game))
+        self.assertEqual(game.save.identity(), (0, 0))
+
+    def test_switch_before_idset_binds_nothing(self):
+        game = FakeGame(FakeSave())
+        ctx = self.make_ctx(game)
+        ending = FakeSave(bools={6530: True})
+        bind = ctx.bridge.bind_identity
+
+        def switch_then_bind(identity, nonce):
+            game.load(ending)  # the checked save is replaced by one past the ending just before IDSET
+            bind(identity, nonce)
+        ctx.bridge.bind_identity = switch_then_bind
+        self.assertFalse(self.check(ctx))
+        self.assertEqual(ending.identity(), (0, 0))
+
+    def test_older_clients_save_needs_bind(self):
+        game = FakeGame(FakeSave({2000: 2}))
+        ctx = self.make_ctx(game, [SimpleNamespace(item=ID_BASE + 0x10)] * 2)
+        with self.assertRaisesRegex(IdentityMismatchError, "/bind"):
+            self.check(ctx)
+        self.assertEqual(game.save.identity(), (0, 0))
+        ctx.bind_requested = True
+        self.assertFalse(self.check(ctx))
+        self.assertEqual(game.save.identity(), ID)
+        self.assertFalse(ctx.bind_requested)
+
+    def test_no_seed_yet_means_no_reads_or_writes(self):
+        game = FakeGame(bound())
+        ctx = self.make_ctx(game, [SimpleNamespace(item=ID_BASE + 0x10)])
+        ctx.server_seed_name = None
+        ctx.build_checked = True
+        self.assertEqual(ctx._read_game_state(True), (set(), False))
+        self.assertEqual([r for r in game.requests if r != "PING"], [])
+
+    def test_identity_is_never_zero(self):
+        self.assertEqual(seed_identity("", 0, 0), (1, 1))
+        self.assertNotEqual(seed_identity("A", 0, 1), seed_identity("B", 0, 1))
+        self.assertNotEqual(seed_identity("A", 0, 1), seed_identity("A", 0, 2))
+
+
+class TestBuildIdentity(unittest.TestCase):
+    def check(self, game):
+        ctx = object.__new__(ME1Context)
+        ctx.bridge = game_bridge(game)
+        ctx._check_build()
+        return ctx
+
+    def test_current_bridge_and_mod_pass(self):
+        self.assertTrue(self.check(FakeGame()).build_checked)
+
+    def test_old_bridge_is_refused(self):
+        with self.assertRaisesRegex(BuildMismatchError, "bridge is v11"):
+            self.check(FakeGame(version=11))
+
+    def test_missing_or_old_mod_is_refused(self):
+        with self.assertRaisesRegex(BuildMismatchError, "missing"):
+            self.check(FakeGame(mod=None))
+        with self.assertRaisesRegex(BuildMismatchError, "is 0.2.3"):
+            self.check(FakeGame(mod="0.2.3"))
+
+    def test_ping_versions(self):
+        self.assertEqual(game_bridge(FakeGame(version=11)).ping(), 11)
+        self.assertEqual(game_bridge(FakeGame(version=13)).ping(), 13)
+
+    def test_required_mod_is_not_newer_than_the_world(self):
+        import json
+        import os
+        with open(os.path.join(os.path.dirname(__file__), "..", "archipelago.json"), encoding="utf-8-sig") as f:
+            world = json.load(f)["world_version"]
+        self.assertLessEqual(version_key(MOD_VERSION), version_key(world))
+
+
+
+
+class TestSummaryPages(unittest.TestCase):
+    def test_pages_keep_every_word_and_fit_the_box(self):
+        lines = ["In logic: Uncharted 198, Citadel 116, Normandy 27",
+                 "Uncharted: " + ", ".join(f"Planet{i} {i}" for i in range(30)),
+                 "Locked: Eden Prime [coords], Therum [coords, 2 squad], Feros [coords, 2 squad]"]
+        pages = summary_pages(lines)
+        self.assertGreater(len(pages), 1)
+        self.assertTrue(all(len(page) <= 7 and all(len(line) <= 56 for line in page) for page in pages))
+        body = [line for page in pages for line in page if not line.startswith("Archipelago") and line != "F7: next page"]
+        self.assertEqual(" ".join(body).split(), " ".join(lines).split())
+
+    def test_short_summary_is_one_page(self):
+        self.assertEqual(summary_pages(["In logic: Normandy 3"]), [["Archipelago", "In logic: Normandy 3"]])

@@ -16,6 +16,7 @@ import random
 import re
 import unicodedata
 from typing import BinaryIO, Callable, Protocol, Sequence
+import zlib
 
 import colorama
 
@@ -33,7 +34,18 @@ from .world import MassEffectLE1World
 logger = logging.getLogger("ME1Client")
 
 PIPE_NAME = r"\\.\pipe\LE1APBridge"
-RECEIVED_INDEX_PLOT_INT = 2000
+READ_BYTES = 65536  # one reply (a SNAP reply is a few KB)
+RECEIVED_INDEX_PLOT_INT = 2000  # written only by the bridge's TXN (v12)
+SEED_PLOT_INT, SLOT_PLOT_INT = 2004, 2005  # the save's seed/slot identity, written only by IDSET (0, 0 = not bound)
+NONCE_PLOT_INT = 2006  # bridge v12 NONCE: marks the save the client checks before binding it (IDSET compares it)
+# Build identity (R13): the oldest bridge and mod this client works with. The bridge answers PING with its version; the
+# release writes the mod version into DLC_MOD_ArchipelagoME1\ArchipelagoME1.version, which the bridge reads (MODVER).
+BRIDGE_VERSION = 12
+MOD_VERSION = "0.2.4"
+# An unbound save is bound to the seed only if it has at most this many checks done (a fresh career): a save from
+# another seed or a vanilla save loaded by mistake would otherwise send its progress as checks. The open start alone
+# sets 6 (live 2026-10-26: the Started checks of Feros, Liara, Noveria, UNC Cerberus, Hostage and Rogue VI).
+BIND_MAX_TRUE_LOCATIONS = 10
 GOAL_PLOT_BOOL = 6530  # CH4 Final_Choice.Game_Complete: transition 5110 in the final speech (BIOA_CRD00, both Council outcomes); 2511 End_Game_Done is never set on LE1
 VIRMIRE_DONE_PLOT_BOOL = 2509
 ILOS_OPEN_PLOT_BOOL = 4103  # D5: set by the client once the fragment gate (and D9) is met
@@ -58,6 +70,10 @@ NOTICE_LEVELS = ("all", "important", "off")  # /notices: "important" skips sends
 # F7 summary (bridge v11 MSGBOX): one dismissable message box; style 0 = DisplayQuickMessageBoxEx, 1 = the Alternate one.
 MSGBOX_STYLE = 0
 MSGBOX_MAX_BYTES = 8000  # the bridge's limit; a longer summary falls back to notices (nothing is cut)
+# The box shows about 7 lines of about 56 characters (live 2026-10-26: a 13-line summary ran past the panel), so the
+# summary is wrapped and split into pages: F7 shows page 1, F7 on an open page shows the next (bridge v12 KEYS).
+BOX_LINE_CHARS = 56
+BOX_PAGE_LINES = 7
 MSGBOX_BRIDGE_VERSION = 11  # bridges before v11 have no MSGBOX and drop requests over 511 bytes: ask VER first
 # Shop slot location -> the transition its plot item runs when bought (= its bool, D19); bridge v11 SHOPITEM labels the
 # slot with the scouted AP item.
@@ -78,6 +94,32 @@ class BridgeProtocolError(BridgeError):
     """The bridge rejected a request or returned a malformed reply."""
 
 
+class DeliveryGapError(BridgeProtocolError):
+    """TXN found the save's received index short of the item (another save was loaded): resync from the save."""
+
+
+class IdentityMismatchError(BridgeError):
+    """The loaded save belongs to another seed or slot, or cannot be bound to this one."""
+
+
+class BuildMismatchError(BridgeError):
+    """The installed bridge or mod is older than this client needs."""
+
+
+# Requests that must not be sent twice when a reply is lost: a resend would repeat a notice or a box, or lose presses.
+# Everything else is a read, an absolute write, or a TXN (idempotent per received index).
+NOT_REPEATABLE = frozenset({"NOTE", "MSGBOX", "KEYS"})
+
+
+def seed_identity(seed_name: str, team: int, slot: int) -> tuple[int, int]:
+    """Two positive 31-bit ints naming this seed and slot, stored in the save (never 0, which means unbound)."""
+    return (zlib.crc32(seed_name.encode("utf-8")) & 0x7FFF_FFFF) or 1, ((team << 16) | slot) or 1
+
+
+def version_key(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in re.findall(r"\d+", version))
+
+
 PipeOpener = Callable[[str, str, int], BinaryIO]
 
 
@@ -88,6 +130,9 @@ class BridgeConnection:
         self.pipe_name = pipe_name
         self._opener = opener
         self._pipe: BinaryIO | None = None
+        # bridge v12: the save identity this client works on. The bridge runs SETB / SETI / XST only on the save bound
+        # to it; it is announced again on every new pipe connection (the bridge forgets it when a client disconnects).
+        self.session: tuple[int, int] | None = None
 
     def close(self) -> None:
         if self._pipe is not None:
@@ -97,20 +142,32 @@ class BridgeConnection:
 
     def _connect(self) -> BinaryIO:
         if self._pipe is None:
-            self._pipe = self._opener(self.pipe_name, "r+b", 0)
+            pipe = self._opener(self.pipe_name, "r+b", 0)
+            if self.session is not None:
+                pipe.write(f"SESSION {self.session[0]} {self.session[1]}".encode("ascii"))
+                if pipe.read(READ_BYTES) != b"OK":
+                    with contextlib.suppress(OSError):
+                        pipe.close()
+                    raise OSError("the bridge refused SESSION")
+            self._pipe = pipe
         return self._pipe
 
+    def set_session(self, identity: tuple[int, int]) -> None:
+        if identity != self.session:
+            self.session = identity
+            self.close()  # the next request reconnects and announces it
+
     def request(self, request: str) -> str:
-        """Send one ASCII request, reconnecting once after a transport failure."""
+        """Send one ASCII request, reconnecting once after a transport failure (not for NOT_REPEATABLE requests)."""
         if not request.isascii():
             raise ValueError("bridge requests must be ASCII")
 
         last_error: OSError | None = None
-        for _attempt in range(2):
+        for _attempt in range(1 if request.split(" ", 1)[0] in NOT_REPEATABLE else 2):
             try:
                 pipe = self._connect()
                 pipe.write(request.encode("ascii"))
-                reply = pipe.read(512).decode("ascii")
+                reply = pipe.read(READ_BYTES).decode("ascii")
                 if not reply:
                     raise OSError("bridge closed the pipe without replying")
                 return self._parse_reply(request, reply)
@@ -126,6 +183,12 @@ class BridgeConnection:
             raise GameNotReadyError("LE1 has no world loaded")
         if reply == "ERR nosquad":
             raise GameNotReadyError("LE1 has no player squad yet")
+        if reply == "ERR timeout":  # the game thread is busy (load screen); the request may still run, so the next
+            raise GameNotReadyError(f"{request.split()[0]}: timeout")  # poll rereads the save and TXN skips what landed
+        if reply == "ERR identity":
+            raise IdentityMismatchError("another save was loaded")
+        if reply.startswith("ERR gap "):
+            raise DeliveryGapError(f"{request!r}: {reply}")
         if reply.startswith("ERR "):
             raise BridgeProtocolError(f"{request!r}: {reply}")
         if reply == "OK":
@@ -134,9 +197,51 @@ class BridgeConnection:
             return reply[3:]
         raise BridgeProtocolError(f"{request!r}: malformed reply {reply!r}")
 
-    def ping(self) -> None:
-        if self.request("PING") != "pong":
-            raise BridgeProtocolError("PING returned an unexpected value")
+    def ping(self) -> int:
+        """The bridge version: v12+ answers PING with it, an older bridge with a bare pong (counted as 11)."""
+        value = self.request("PING")
+        if value == "pong":
+            return 11
+        if not value.startswith("pong ") or not value[5:].isdigit():
+            raise BridgeProtocolError(f"PING returned an unexpected value {value!r}")
+        return int(value[5:])
+
+    def mod_version(self) -> str | None:
+        """The installed mod's version (bridge v12 MODVER), or None if the mod has no version file."""
+        try:
+            return self.request("MODVER")
+        except BridgeProtocolError:
+            return None
+
+    def identity(self) -> tuple[int, int]:
+        value = self.request("ID").split()
+        if len(value) != 2 or not all(part.lstrip("-").isdigit() for part in value):
+            raise BridgeProtocolError(f"ID: invalid identity {value!r}")
+        return int(value[0]), int(value[1])
+
+    def nonce(self, value: int) -> None:
+        """Mark the loaded save (int 2006) before checking it for binding."""
+        self.request(f"NONCE {value}")
+
+    def bind_identity(self, identity: tuple[int, int], nonce: int) -> None:
+        """Bind the save the client checked: the bridge refuses if the loaded save no longer holds `nonce` (another
+        save was loaded), or is bound to another identity."""
+        self.request(f"IDSET {identity[0]} {identity[1]} {nonce}")
+
+    def snapshot(self) -> Snapshot:
+        """Every plot value the client reads each poll, with the save identity, from one game-thread step (SNAP)."""
+        values = self.request(SNAP_REQUEST).split()
+        try:
+            return Snapshot.parse(values)
+        except (ValueError, IndexError) as error:
+            raise BridgeProtocolError(f"SNAP: malformed reply ({error})") from error
+
+    def transaction(self, identity: tuple[int, int], index: int, delivery: str) -> bool:
+        """Deliver received item `index` (TXN); True if applied now, False if the save already had it."""
+        value = self.request(f"TXN {identity[0]} {identity[1]} {index} {delivery}")
+        if value not in {"applied", "done"}:
+            raise BridgeProtocolError(f"TXN {index}: unexpected reply {value!r}")
+        return value == "applied"
 
     def get_bool(self, index: int) -> bool:
         value = self.request(f"GETB {index}")
@@ -156,12 +261,6 @@ class BridgeConnection:
 
     def set_int(self, index: int, value: int) -> None:
         self.request(f"SETI {index} {value}")
-
-    def give_item(self, item_row: int, sophistication: int, manufacturer_row: int) -> None:
-        self.request(f"GIVE {item_row} {sophistication} {manufacturer_row}")
-
-    def add_resource(self, resource: int, amount: int) -> None:
-        self.request(f"RES {resource} {amount}")
 
     def note(self, text: str) -> None:
         """One HUD notice line; callers wrap longer text with notice_lines."""
@@ -200,19 +299,34 @@ class BridgeConnection:
         """The current world's map package (bridge v10)."""
         return self.request("MAP")
 
-    def key_presses(self) -> int:
-        """Tracker hotkey presses since the last call (bridge v10)."""
-        value = self.request("KEYS")
+    def key_presses(self) -> tuple[int, int]:
+        """Tracker hotkey presses since the last call (bridge v10): (presses, presses that closed our box (v12))."""
+        value = self.request("KEYS").split()
         try:
-            return int(value)
-        except ValueError as error:
-            raise BridgeProtocolError(f"KEYS: invalid count {value!r}") from error
+            presses, closes = (int(value[0]), int(value[1]) if len(value) > 1 else 0)
+        except (ValueError, IndexError) as error:
+            raise BridgeProtocolError(f"KEYS: invalid counts {value!r}") from error
+        return presses, closes
 
 
 def notice_text(text: str) -> str:
     """ASCII and single-line, so any slot or item name fits the bridge's NOTE request."""
     folded = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
     return " ".join("".join(char if char.isprintable() else " " for char in folded).split()) or "?"
+
+
+def summary_pages(lines: Sequence[str], width: int = BOX_LINE_CHARS, height: int = BOX_PAGE_LINES) -> list[list[str]]:
+    """The F7 summary as message box pages: lines wrapped at spaces to `width` (a longer word is split), each page a
+    title plus at most `height` - 1 lines, and "F7: next page" on every page but the last. Nothing is dropped."""
+    wrapped = [chunk for line in lines for chunk in notice_lines(line, width)]
+    per_page = height - 1
+    if len(wrapped) > per_page:
+        per_page -= 1  # room for the footer
+    chunks = [wrapped[start:start + per_page] for start in range(0, len(wrapped), per_page)] or [[]]
+    if len(chunks) == 1:
+        return [["Archipelago"] + chunks[0]]
+    return [[f"Archipelago ({number}/{len(chunks)})"] + chunk + (["F7: next page"] if number < len(chunks) else [])
+            for number, chunk in enumerate(chunks, 1)]
 
 
 def message_box_text(lines: Sequence[str]) -> str:
@@ -312,9 +426,7 @@ class ItemBridge(Protocol):
 
     def set_int(self, index: int, value: int) -> None: ...
 
-    def give_item(self, item_row: int, sophistication: int, manufacturer_row: int) -> None: ...
-
-    def add_resource(self, resource: int, amount: int) -> None: ...
+    def transaction(self, identity: tuple[int, int], index: int, delivery: str) -> bool: ...
 
 
 GEAR_BY_ITEM_ID = {ITEM_NAME_TO_ID[line.name]: line for line in GEAR_LINES}
@@ -342,23 +454,24 @@ def upgrade_row(seed_name: str, index: int) -> int:
     return UPGRADE_ROWS[random.Random(f"{seed_name}:{index}").randrange(len(UPGRADE_ROWS))]
 
 
-def apply_item(bridge: ItemBridge, item_id: int, index: int, gear_seen: int, gear_total: int, seed_name: str,
-               log: logging.Logger = logger) -> None:
-    """Deliver one received item to the game (plot flag, gear or resource)."""
+def delivery_op(item_id: int, index: int, gear_seen: int, gear_total: int, seed_name: str,
+                log: logging.Logger = logger) -> str:
+    """The TXN delivery for one received item (plot flag, gear, resource, or NONE for what only the client counts)."""
     level = gear_level(gear_seen, gear_total)
     if (plot_bool := plot_bool_for_item(item_id)) is not None:
-        bridge.set_bool(plot_bool, True)
-    elif (line := GEAR_BY_ITEM_ID.get(item_id)) is not None:
-        bridge.give_item(line.item_row, 10 if line.spectre else level, line.manufacturer_row)
-    elif item_id == UPGRADE_ITEM_ID:
-        bridge.give_item(upgrade_row(seed_name, index), level, NO_MANUFACTURER)
-    elif (resource := RESOURCE_ITEMS.get(item_id)) is not None:
+        return f"FLAG {plot_bool}"
+    if (line := GEAR_BY_ITEM_ID.get(item_id)) is not None:
+        return f"GIVE {line.item_row} {10 if line.spectre else level} {line.manufacturer_row}"
+    if item_id == UPGRADE_ITEM_ID:
+        return f"GIVE {upgrade_row(seed_name, index)} {level} {NO_MANUFACTURER}"
+    if (resource := RESOURCE_ITEMS.get(item_id)) is not None:
         kind, amount = resource
-        bridge.add_resource(kind, amount if amount is not None else CREDITS_PER_LEVEL * level)
-    elif item_id == FRAGMENT_ITEM_ID:
+        return f"RES {kind} {amount if amount is not None else CREDITS_PER_LEVEL * level}"
+    if item_id == FRAGMENT_ITEM_ID:
         log.info("Received a Prothean Beacon Fragment (counted by the client for the Ilos gate)")
     else:
         log.info("Received unsupported item %s; skipping game write", item_id)
+    return "NONE"
 
 
 def sync_received_items(
@@ -367,12 +480,15 @@ def sync_received_items(
     log: logging.Logger = logger,
     gear_total: int = 0,
     seed_name: str = "",
+    *,
+    identity: tuple[int, int],
 ) -> int:
-    """Apply items after the save's durable received index and return the new index.
+    """Deliver items after the save's durable received index, one TXN each, and return the new index.
 
-    The index is written after every item, so a failure mid-way (e.g. a load screen) resumes at the first item not yet
-    delivered. Gear levels depend only on the server's item order, so a replay (new game, older save) delivers the same
-    items at the same levels."""
+    The bridge compares the save's identity and index, grants and advances the index in one game-thread step, so a
+    failure mid-way (a load screen, a timeout, a lost reply) resumes at the first item not yet delivered and never
+    grants twice. Gear levels depend only on the server's item order, so a replay (new game, older save) delivers the
+    same items at the same levels."""
     saved_index = bridge.get_int(RECEIVED_INDEX_PLOT_INT)
     start_index = max(saved_index, 0)
     if saved_index < 0:
@@ -388,10 +504,15 @@ def sync_received_items(
     gear_seen = sum(1 for item in received_items[:start_index] if item.item in GEAR_BY_ITEM_ID)
     for index in range(start_index, len(received_items)):
         item_id = received_items[index].item
-        apply_item(bridge, item_id, index, gear_seen, gear_total, seed_name, log)
+        delivery = delivery_op(item_id, index, gear_seen, gear_total, seed_name, log)
+        try:
+            if not bridge.transaction(identity, index, delivery):
+                log.info("Received item %s was already in the save (retry after a lost reply)", index)
+        except DeliveryGapError as error:  # the save changed under us: the next poll starts from its index
+            log.warning("Item delivery paused, the save's received index changed: %s", error)
+            return index
         if item_id in GEAR_BY_ITEM_ID:
             gear_seen += 1
-        bridge.set_int(RECEIVED_INDEX_PLOT_INT, index + 1)
     return len(received_items)
 
 
@@ -422,8 +543,48 @@ UNSUPPORTED_LOCATIONS = tuple(
 )
 
 
+class Snapshot:
+    """One SNAP reply: the save identity and the plot values the client reads, all from the same game-thread step."""
+
+    def __init__(self, identity: tuple[int, int], bools: dict[int, bool], ints: dict[int, int]) -> None:
+        self.identity, self._bools, self._ints = identity, bools, ints
+
+    @classmethod
+    def parse(cls, values: Sequence[str]) -> Snapshot:
+        if len(values) != 2 + len(SNAP_BOOL_RANGES) + len(SNAP_INTS):
+            raise ValueError(f"{len(values)} fields")
+        bools: dict[int, bool] = {}
+        for (first, count), text in zip(SNAP_BOOL_RANGES, values[2:2 + len(SNAP_BOOL_RANGES)]):
+            if len(text) != (count + 3) // 4:
+                raise ValueError(f"range {first}: {len(text)} digits")
+            for offset in range(count):
+                bools[first + offset] = bool(int(text[offset // 4], 16) >> (offset % 4) & 1)
+        ints = {index: int(value) for index, value in zip(SNAP_INTS, values[2 + len(SNAP_BOOL_RANGES):])}
+        return cls((int(values[0]), int(values[1])), bools, ints)
+
+    def get_bool(self, index: int) -> bool:
+        return self._bools[index]
+
+    def get_int(self, index: int) -> int:
+        return self._ints[index]
+
+
 def evaluate_location_predicates(bridge: PlotReader) -> set[int]:
     return {location_id for location_id, predicate in LOCATION_PREDICATES.items() if predicate.evaluate(bridge)}
+
+
+def _snap_spec() -> tuple[tuple[tuple[int, int], ...], tuple[int, ...]]:
+    """What SNAP reads: every location predicate's bools (as one vanilla and one AP range), the goal, and the ints."""
+    bools = {index for predicate in LOCATION_PREDICATES.values() if predicate.kind == "bool" for index in predicate.indices}
+    bools.add(GOAL_PLOT_BOOL)
+    vanilla, ours = [index for index in bools if index < 20000], [index for index in bools if index >= 20000]
+    ranges = [(0, max(vanilla) + 1)] + ([(min(ours), max(ours) - min(ours) + 1)] if ours else [])
+    ints = {predicate.indices[0] for predicate in LOCATION_PREDICATES.values() if predicate.kind == "int"}
+    return tuple(ranges), tuple(sorted(ints | {RECEIVED_INDEX_PLOT_INT, NONCE_PLOT_INT}))
+
+
+SNAP_BOOL_RANGES, SNAP_INTS = _snap_spec()
+SNAP_REQUEST = "SNAP " + " ".join([f"b{first}+{count}" for first, count in SNAP_BOOL_RANGES] + [f"i{index}" for index in SNAP_INTS])
 
 
 class NoticeBridge(Protocol):
@@ -470,6 +631,13 @@ class ME1CommandProcessor(ClientCommandProcessor):
         self.output(f"In-game notices: {self.ctx.notice_level}")
         return True
 
+    def _cmd_bind(self) -> bool:
+        """Bind the loaded save to this slot: only for a career started with a client before 0.2.4 (it has items but
+        no seed identity). Load that career's save first."""
+        self.ctx.bind_requested = True
+        self.output("The loaded save will be bound to this slot at the next poll, if it is an older client's save.")
+        return True
+
 
 class ME1Context(CommonContext):
     game = MassEffectLE1World.game
@@ -483,11 +651,16 @@ class ME1Context(CommonContext):
     tracker_enabled = True  # off if the bridge refuses MAP/KEYS (older than v10)
     # F7 summary waiting for the game: (message box lines, notice lines for a bridge older than v11)
     summary_pending: tuple[list[str], list[str]] | None = None
+    summary_next: list[list[str]] = []  # the F7 summary's pages after the one shown (F7 on an open page shows the next)
     notices_reset = False  # set by /notices: drop queued sends (and notices, when off) on the next poll
     shop_scouted = False  # LocationScouts sent for this connection's shop slots
     shop_labels_sent = False  # the bridge holds the current shop labels (reset on reconnects and new scout results)
     notice_level = "all"  # /notices: all, important or off
     _last_area: str | None = None
+    build_checked = False  # bridge and mod versions checked for this bridge connection
+    bind_requested = False  # /bind: adopt the loaded save of an older client (it has items but no identity)
+    _last_bridge_error = ""  # a new bridge error is logged even while the bridge is already marked unavailable
+    _refusal_reported: str | None = None  # the identity or build refusal last logged (each is logged once)
 
     def __init__(
         self,
@@ -606,12 +779,97 @@ class ME1Context(CommonContext):
     def _server_ready(self) -> bool:
         return self.slot is not None and self.server is not None and not self.server.socket.closed
 
+    def _refuse(self, error: type[BridgeError], message: str, notice: str | None = None) -> None:
+        """Stop this poll with `message`, logged (and shown in game) only when it is new."""
+        if self._refusal_reported != message:
+            self._refusal_reported = message
+            logger.error(message)
+            if notice is not None and self.notices_enabled:
+                with contextlib.suppress(BridgeError):
+                    self.bridge.note(notice)
+        raise error(message)
+
+    def _check_build(self) -> None:
+        """R13, fail closed: the bridge answers PING with its version and reads the mod's version file."""
+        version = self.bridge.ping()
+        if self.build_checked:
+            return
+        if version < BRIDGE_VERSION:
+            self._refuse(BuildMismatchError, f"The game bridge is v{version}, this client needs v{BRIDGE_VERSION} or newer. "
+                         f"Close the game and run install-bridge.ps1 from the bridge zip of this release.")
+        mod = self.bridge.mod_version()
+        if mod is None or version_key(mod) < version_key(MOD_VERSION):
+            found = "is missing or has no version" if mod is None else f"is {mod}"
+            self._refuse(BuildMismatchError, f"The Archipelago mod (DLC_MOD_ArchipelagoME1) {found}; this client needs "
+                         f"{MOD_VERSION} or newer. Install the mod zip of this release.")
+        self.build_checked = True
+        logger.info("Game bridge v%s, mod %s", version, mod)
+
+    def save_identity(self) -> tuple[int, int] | None:
+        """This slot's identity in the save, from the seed the server reported (None until RoomInfo has arrived)."""
+        seed = getattr(self, "server_seed_name", None)
+        if not seed:
+            return None
+        return seed_identity(seed, getattr(self, "team", None) or 0, self.slot or 0)
+
+    def _check_identity(self, identity: tuple[int, int], snapshot: Snapshot) -> bool:
+        """True if the snapshot's save is bound to this slot. An unbound fresh career is bound (False this poll); a save
+        bound to another seed or slot is refused. Binding marks the save with a nonce first and IDSET binds only the
+        save that still holds it, so a save loaded in between (or a request that ran late) is never bound."""
+        if snapshot.identity == identity:
+            self._refusal_reported = None
+            return True
+        if snapshot.identity != (0, 0):
+            self._refuse(IdentityMismatchError, "This save belongs to another Archipelago seed or slot. Load the save "
+                         "for this slot, or start a new career.", "Archipelago: this save is from another seed")
+        nonce = random.randint(1, 0x7FFF_FFFF)
+        self.bridge.nonce(nonce)
+        marked = self.bridge.snapshot()
+        if marked.get_int(NONCE_PLOT_INT) != nonce or marked.identity != (0, 0):
+            return False  # another save was loaded meanwhile: check again next poll
+        index = marked.get_int(RECEIVED_INDEX_PLOT_INT)
+        if index == 0:
+            if marked.get_bool(GOAL_PLOT_BOOL):
+                self._refuse(IdentityMismatchError, "This save is past the ending, so it cannot start an Archipelago "
+                             "seed. Load an earlier save, or start a new career.")
+            done = len(evaluate_location_predicates(marked))
+            if done > BIND_MAX_TRUE_LOCATIONS:
+                self._refuse(IdentityMismatchError, f"This save already has {done} Archipelago checks done, so it is not "
+                             "a fresh career. Start a new career, or load the save for this slot.")
+            message = f"Save bound to this seed and slot ({done} checks done)"
+        elif self.bind_requested:
+            message = f"Save from an older client bound to this seed and slot by /bind ({index} items received)"
+        else:
+            self._refuse(IdentityMismatchError, f"This save has {index} Archipelago items but no seed identity: it was "
+                         "started with a client older than 0.2.4. If it is this slot's save, type /bind; otherwise load "
+                         "this slot's save or start a new career.")
+        try:
+            self.bridge.bind_identity(identity, nonce)
+        except BridgeProtocolError as error:
+            if "ERR bound" in str(error):
+                self._refuse(IdentityMismatchError, "This save belongs to another Archipelago seed or slot. Load the "
+                             "save for this slot, or start a new career.")
+            return False  # ERR changed: another save was loaded before IDSET ran
+        self.bind_requested = False
+        self._refusal_reported = None
+        logger.info(message)
+        return False  # deliveries start next poll, from a snapshot of the bound save
+
     def _read_game_state(self, server_ready: bool) -> tuple[set[int], bool]:
-        self.bridge.ping()
+        self._check_build()
         items: tuple = ()
+        snapshot: Snapshot | None = None
         if server_ready:
+            identity = self.save_identity()
+            if identity is None:
+                return set(), False  # RoomInfo (the seed) has not arrived yet
+            self.bridge.set_session(identity)  # the bridge writes plot values only to the save bound to this identity
+            snapshot = self.bridge.snapshot()
+            if not self._check_identity(identity, snapshot):
+                return set(), False
             items = tuple(self.items_received)
-            sync_received_items(self.bridge, items, gear_total=self.gear_total, seed_name=getattr(self, "seed_name", None) or "")
+            sync_received_items(self.bridge, items, gear_total=self.gear_total,
+                                seed_name=getattr(self, "seed_name", None) or "", identity=identity)
             if self.unlock_containers and not self.bridge.get_bool(UNLOCK_CONTAINERS_PLOT_BOOL):
                 self.bridge.set_bool(UNLOCK_CONTAINERS_PLOT_BOOL, True)
                 logger.info("Unlock Containers: Decryption containers now open like plain ones")
@@ -631,8 +889,9 @@ class ME1Context(CommonContext):
                 self._send_shop_labels()
             if self.notices_enabled and self.tracker is not None and self.tracker_enabled:
                 self._tracker_notices(items)
-        true_locations = evaluate_location_predicates(self.bridge)
-        goal_complete = self.bridge.get_bool(GOAL_PLOT_BOOL)
+        # Checks and the goal come from the snapshot, whose identity was checked in the same game-thread step.
+        true_locations = evaluate_location_predicates(snapshot) if snapshot is not None else set()
+        goal_complete = snapshot is not None and snapshot.get_bool(GOAL_PLOT_BOOL)
         if self.notices_enabled:
             if self.notices_reset:
                 self.notices_reset = False
@@ -655,13 +914,15 @@ class ME1Context(CommonContext):
     def _tracker_notices(self, items: Sequence) -> None:
         """Queue the F7 summary and a notice for each newly entered area (both computed from the rebuilt logic)."""
         try:
-            presses = self.bridge.key_presses()
+            presses, closes = self.bridge.key_presses()
             area = level_area(self.bridge.map_name())
         except BridgeProtocolError as error:
             logger.warning("In-game tracker is off (bridge older than v10?): %s", error)
             self.tracker_enabled = False
             return
         entered = area is not None and area != self._last_area
+        if closes and not presses and self.summary_next:  # F7 closed a page: show the next one
+            self.summary_pending = (self.summary_next.pop(0), [])
         if not presses and not entered:
             return
         missing = set(self.missing_locations) - set(self.locations_checked)
@@ -670,8 +931,8 @@ class ME1Context(CommonContext):
             self._last_area = area
             self.notify(area_line(status, area), important=False)
         if presses:
-            self.summary_pending = (["Archipelago"] + summary_lines(status, planets_shown=len(status.areas)),
-                                    summary_lines(status))
+            pages = summary_pages(summary_lines(status, planets_shown=len(status.areas)))
+            self.summary_pending, self.summary_next = (pages[0], summary_lines(status)), pages[1:]
 
     def _deliver_summary(self) -> None:
         """Show the pending F7 summary in the message box (bridge v11+); kept on a load screen, else sent as notices."""
@@ -748,17 +1009,27 @@ class ME1Context(CommonContext):
                         logger.info("LE1APBridge is connected; waiting for a game world")
                     self._bridge_ready = False
                     self.shop_labels_sent = False
-                except BridgeError as error:
-                    if self._bridge_ready is not False:
-                        logger.warning("LE1APBridge unavailable: %s", error)
+                except IdentityMismatchError:  # logged once by _refuse; nothing is touched
                     self._bridge_ready = False
                     self.shop_labels_sent = False
+                except BuildMismatchError:  # logged once by _refuse
+                    self._bridge_ready = False
+                    self.shop_labels_sent = False
+                    self.build_checked = False  # the player may update the bridge or mod and restart the game
+                except BridgeError as error:
+                    if self._bridge_ready is not False or str(error) != self._last_bridge_error:
+                        logger.warning("LE1APBridge unavailable: %s", error)
+                    self._last_bridge_error = str(error)
+                    self._bridge_ready = False
+                    self.shop_labels_sent = False
+                    self.build_checked = False
                 except OSError as error:
                     if self._bridge_ready is not False:
                         logger.warning("LE1APBridge pipe unavailable: %s", error)
                     self.bridge.close()
                     self._bridge_ready = False
                     self.shop_labels_sent = False
+                    self.build_checked = False
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
         finally:
             self.bridge.close()
