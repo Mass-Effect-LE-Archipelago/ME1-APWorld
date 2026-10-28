@@ -107,7 +107,8 @@ class GearPool(Range):
     """How many gear items (one manufacturer's weapon, armor, bio-amp or omni-tool line each) are drawn into the pool.
 
     Every category is represented; about one in twenty is Spectre gear. Gear arrives at a level that climbs from I to X
-    as you collect it (Spectre gear is always X). Lowered to the free room in the pool."""
+    as you collect it (Spectre gear is always X). Lowered to the free room in the pool, and to at most 228 (every
+    non-Spectre line plus Spectre gear at one in twenty): higher values give 228."""
 
     display_name = "Gear Items"
     range_start = 0

@@ -166,7 +166,7 @@ def main(version: str, mod_staging: str, bridge: str) -> None:
         raise SystemExit(f"no {MOD_FOLDER}/AutoLoad.ini in {mod_staging}")
     tmp = os.path.join(out, "_mod")
     shutil.copytree(mod_src, os.path.join(tmp, MOD_FOLDER))
-    # Build identity (R13): bridge v12 reads this file (MODVER) and the client refuses a mod older than it needs.
+    # Build identity (R13): bridge v12+ reads this file (MODVER) and the client refuses a mod older than it needs.
     with open(os.path.join(tmp, MOD_FOLDER, MOD_VERSION_FILE), "w", encoding="ascii", newline="\n") as f:
         f.write(version + "\n")
     movies = os.path.join(tmp, "BASEGAME", "Movies")

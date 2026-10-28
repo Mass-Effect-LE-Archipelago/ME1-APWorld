@@ -39,7 +39,7 @@ def me2_payload(release: pathlib.Path, loader: pathlib.Path, dest: pathlib.Path)
 
 
 def defaults(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--me1-release", default=REPO / "games" / "masseffect1" / "build" / "release-0.2.4", type=pathlib.Path)
+    parser.add_argument("--me1-release", default=REPO / "games" / "masseffect1" / "build" / "release-0.2.5", type=pathlib.Path)
     parser.add_argument("--me2-release", default=REPO / "release" / "ME2LE-AP-0.2.1", type=pathlib.Path)
     parser.add_argument("--me2-loader", default=REPO / "ME2-LE-Archipelago" / "tools" / "asiloader" / "build" / "Release" / "bink2w64.dll", type=pathlib.Path)
 
@@ -47,9 +47,10 @@ def defaults(parser: argparse.ArgumentParser) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("version")
+    parser.add_argument("--out", type=pathlib.Path, help="output folder (default: release/MassEffectAPSetup-<version>)")
     defaults(parser)
     args = parser.parse_args()
-    out = REPO / "release" / f"MassEffectAPSetup-{args.version}"
+    out = args.out or REPO / "release" / f"MassEffectAPSetup-{args.version}"
     if out.exists():
         shutil.rmtree(out)
     publish = HERE / "bin" / "publish"

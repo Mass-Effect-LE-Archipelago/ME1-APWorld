@@ -97,8 +97,8 @@ sent the next time it connects; items you receive while the game is closed arriv
 
 With the setup app: unzip the new version and click **Install / Repair** (close the Archipelago Launcher first).
 Manually: download the new apworld, mod zip and bridge zip. Replace the apworld, import and apply the new mod zip in Mod Manager,
-and run `install-bridge.ps1` from the new bridge zip. Install all three: from 0.2.4 the client checks the bridge (v12)
-and the mod version and stops with a message naming what to update.
+and run `install-bridge.ps1` from the new bridge zip. Install all three: from 0.2.4 the client checks the bridge (v13 from
+0.2.5) and the mod version and stops with a message naming what to update.
 
 From 0.2.4 each save is bound to its seed and slot the first time the client connects to it, and the client refuses a
 save from another seed (it changes nothing in it). A career started before 0.2.4 is not bound yet: load its save,
@@ -110,8 +110,19 @@ visited have no slots); from 0.1.x, start a new career.
 - **"Error -5 while decompressing data"** in the Archipelago Launcher after you double-click a new apworld: close the
   Launcher completely and start it again. The world was installed; the Launcher cannot reload an apworld it had already
   loaded.
+- **"Inventory full" / "N items waiting"**: the squad inventory holds 300 items. Sell gear or convert it to omni-gel;
+  the waiting items then arrive in order (from 0.2.5; nothing is lost).
 - **The client says the bridge or the mod is out of date**: install the bridge zip and the mod zip of the same release
   as the apworld (see Updating).
+
+## Mass Effect 2 (experimental)
+
+The setup app also has a Mass Effect 2 profile. **It is EXPERIMENTAL**: its install and uninstall are tested in scratch
+folders only, not in game with this app. To try it, download `MassEffectAPSetup-<version>-ME2-experimental.zip` from the
+release, unzip it next to (or instead of) the ME1 zip, and pick Mass Effect 2. Its payload is the
+[ArchipelagoME2 0.2.2](https://gitlab.com/unowa001/ArchipelagoME2/-/releases/v0.2.2) release: the ME2 apworld (with its
+client), the LE2 bridge, the ME2 mod and its ASI loader. Please report problems at
+https://gitlab.com/unowa001/ArchipelagoME1/-/issues. Mass Effect 3 is not supported yet.
 
 ## Uninstall
 

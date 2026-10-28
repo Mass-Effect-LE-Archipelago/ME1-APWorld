@@ -4,7 +4,8 @@ The setup app that installs Archipelago for Mass Effect 1 (LE) without ME3Tweaks
 Archipelago, the bridge into the game's ASI folder, the mod into the game with its file table (the game TOC that
 AutoTOC would otherwise write), and the optional travel-video skip. Every file it changes is backed up; Uninstall puts
 them back. It also writes your YAML into Archipelago's Players folder, runs Generate, and launches the game and client.
-The ME2 profile is experimental (tested in scratch folders only) and needs an ME2 payload that is not published here.
+The ME2 profile is experimental (tested in scratch folders only); its payload (the ArchipelagoME2 0.2.2 release files) is
+published as the separate `MassEffectAPSetup-<version>-ME2-experimental.zip` release asset.
 
 License: GPL-3.0 (`LICENSE`), because it is built with LegendaryExplorerCore. Third-party components and their licenses:
 `THIRD-PARTY-NOTICES.md`, `licenses/`.

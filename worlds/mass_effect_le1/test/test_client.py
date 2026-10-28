@@ -11,6 +11,7 @@ from ..client import (
     DeliveryGapError,
     GameNotReadyError,
     IdentityMismatchError,
+    InventoryFullError,
     ID_BASE,
     ME1CommandProcessor,
     ME1Context,
@@ -52,7 +53,8 @@ class FakeBridge:
         self.bools = dict(bools or {})
         self.ints = {2004: ident[0], 2005: ident[1], **(ints or {})}
         self.transactions = []
-        self.bridge_version = 12
+        self.bridge_version = 13
+        self.inventory_full = False  # v13: GIVE answers ERR full and the index stays
         self.mod = "0.2.4"
         self.bool_writes = []
         self.int_writes = []
@@ -71,7 +73,7 @@ class FakeBridge:
         self.shop_clears = 0
 
     def transaction(self, identity, index, delivery):
-        """Bridge v12 TXN: identity, then index, then the delivery and the index update in one step."""
+        """Bridge v12+ TXN: identity, then index, then the delivery and the index update in one step."""
         if identity != self.identity():
             raise IdentityMismatchError("another save was loaded")
         current = self.ints.get(2000, 0)
@@ -84,6 +86,8 @@ class FakeBridge:
         if op == "FLAG":
             self.set_bool(args[0], True)
         elif op == "GIVE":
+            if self.inventory_full:
+                raise InventoryFullError("ERR full")
             if self.fail_give_after is not None and len(self.gives) >= self.fail_give_after:
                 raise GameNotReadyError("load screen")
             self.gives.append(tuple(args))
@@ -846,14 +850,15 @@ class FakeSave:
 
 
 class FakeGame:
-    """LE1APBridge v12 behind a fake pipe, following tools/le1apbridge/LE1APBridge/Plot.hpp (natively tested by
+    """LE1APBridge v13 behind a fake pipe, following tools/le1apbridge/LE1APBridge/Plot.hpp (natively tested by
     plot_test.cpp). `timeouts` makes the next N TXNs answer ERR timeout and stay queued: like the bridge's, they run
     later, before the next request (possibly after `load` switched the save). `lost_replies` makes the next N TXNs run
     and then breaks the pipe before the reply."""
 
-    def __init__(self, save=None, *, version=12, mod="0.2.4"):
+    def __init__(self, save=None, *, version=13, mod="0.2.4"):
         self.save = save or FakeSave()
         self.version, self.mod = version, mod
+        self.inventory_full = False  # v13: a GIVE answers ERR full and leaves the index
         self.grants, self.requests, self.pending = [], [], []
         self.timeouts = self.lost_replies = 0
         self.session = None
@@ -899,6 +904,8 @@ class FakeGame:
                 return "OK done"
             if current < index:
                 return f"ERR gap {current}"
+            if self.inventory_full and args[3] == "GIVE":
+                return "ERR full"
             self.grants.append((index, " ".join(args[3:])))
             ints[2000] = index + 1
             return "OK applied"
@@ -1033,6 +1040,77 @@ class TestIdempotentDelivery(unittest.TestCase):
             bridge.set_int(2001, 4)
 
 
+class TestInventoryFull(unittest.TestCase):
+    """v13: a GIVE into a full inventory (300 items) waits; strict order, so later items wait behind it."""
+    GEAR = GEAR_LINES[0].name
+    ITEMS = [SimpleNamespace(item=ID_BASE + 0x10), SimpleNamespace(item=ITEM_NAME_TO_ID[GEAR_LINES[0].name]),
+             SimpleNamespace(item=ITEM_NAME_TO_ID["Credits"]), SimpleNamespace(item=ID_BASE + 0x11)]
+
+    def test_full_reply_is_its_own_error(self):
+        bridge = BridgeConnection(opener=lambda *_args: FakePipe(b"ERR full"))
+        with self.assertRaises(InventoryFullError):
+            bridge.transaction(ID, 0, "GIVE 1 1 -1")
+        self.assertFalse(issubclass(InventoryFullError, BridgeProtocolError))  # not a broken bridge
+
+    def test_full_then_room_delivers_once_in_order(self):
+        game = FakeGame(bound())
+        bridge = game_bridge(game)
+        game.inventory_full = True
+        pending = []
+        self.assertEqual(sync_received_items(bridge, self.ITEMS, on_full=pending.append), 1)
+        self.assertEqual(sync_received_items(bridge, self.ITEMS, on_full=pending.append), 1)  # next poll: still full
+        self.assertEqual(pending, [3, 3])  # the gear item and the two behind it
+        self.assertEqual([index for index, _ in game.grants], [0])
+        game.inventory_full = False  # the player sold something
+        self.assertEqual(sync_received_items(bridge, self.ITEMS, on_full=pending.append), 4)
+        self.assertEqual([index for index, _ in game.grants], [0, 1, 2, 3])
+        self.assertEqual(sync_received_items(bridge, self.ITEMS), 4)
+        self.assertEqual(len(game.grants), 4)  # nothing twice
+
+    def test_reload_while_pending(self):
+        game = FakeGame(bound())
+        bridge = game_bridge(game)
+        game.inventory_full = True
+        sync_received_items(bridge, self.ITEMS)
+        older = FakeSave(dict(game.save.ints))  # a save made while the gear item was pending
+        game.inventory_full = False
+        self.assertEqual(sync_received_items(bridge, self.ITEMS), 4)
+        game.load(older)  # reload it: its index is still 1, so the pending items arrive again in that save, once
+        self.assertEqual(sync_received_items(bridge, self.ITEMS), 4)
+        self.assertEqual([index for index, _ in game.grants], [0, 1, 2, 3, 1, 2, 3])
+        self.assertEqual(older.ints[2000], 4)
+
+    def make_ctx(self, bridge, items):
+        ctx = TestQualityOfLifeSync.make_ctx(TestQualityOfLifeSync(), bridge, items, False)
+        ctx.inventory_full_pending = 0
+        return ctx
+
+    def test_notice_once_per_pending_count_then_cleared(self):
+        bridge = FakeBridge(ints={2000: 0})
+        items = list(self.ITEMS[:2])
+        ctx = self.make_ctx(bridge, items)
+
+        def shown():
+            for _ in range(5):  # the HUD takes a few lines per poll
+                ctx._read_game_state(True)
+            text = " ".join(bridge.notes)
+            bridge.notes.clear()
+            return text
+
+        bridge.inventory_full = True
+        self.assertEqual(shown(), "Inventory full 1 items waiting")  # once, not every poll; one HUD line each
+        items.append(self.ITEMS[2])
+        self.assertEqual(shown(), "Inventory full 2 items waiting")
+        bridge.inventory_full = False
+        self.assertEqual(shown(), "Got 2 items")
+        self.assertEqual((ctx.inventory_full_pending, bridge.ints[2000], len(bridge.gives)), (0, 3, 1))
+
+    def test_notices_fit_one_hud_line_at_any_count(self):
+        ctx = self.make_ctx(FakeBridge(ints={2000: 0}), [])
+        ctx._inventory_full_notice(1368, False)  # the most locations a seed can have
+        ctx._inventory_full_notice(0, True)
+        self.assertEqual(list(ctx.notices), ["Inventory full", "1368 items waiting", "Got 1368 items"])
+
 class TestSnapshot(unittest.TestCase):
     def test_round_trip(self):
         save = bound(i2000=3, i39=20)
@@ -1139,6 +1217,8 @@ class TestBuildIdentity(unittest.TestCase):
     def test_old_bridge_is_refused(self):
         with self.assertRaisesRegex(BuildMismatchError, "bridge is v11"):
             self.check(FakeGame(version=11))
+        with self.assertRaisesRegex(BuildMismatchError, "bridge is v12"):  # v12 loses gear given into a full inventory
+            self.check(FakeGame(version=12))
 
     def test_missing_or_old_mod_is_refused(self):
         with self.assertRaisesRegex(BuildMismatchError, "missing"):

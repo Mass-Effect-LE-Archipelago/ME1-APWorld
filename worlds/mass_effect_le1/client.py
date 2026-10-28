@@ -40,7 +40,7 @@ SEED_PLOT_INT, SLOT_PLOT_INT = 2004, 2005  # the save's seed/slot identity, writ
 NONCE_PLOT_INT = 2006  # bridge v12 NONCE: marks the save the client checks before binding it (IDSET compares it)
 # Build identity (R13): the oldest bridge and mod this client works with. The bridge answers PING with its version; the
 # release writes the mod version into DLC_MOD_ArchipelagoME1\ArchipelagoME1.version, which the bridge reads (MODVER).
-BRIDGE_VERSION = 12
+BRIDGE_VERSION = 13  # v13: a GIVE into a full inventory answers ERR full and waits (v12 lost the item)
 MOD_VERSION = "0.2.4"
 # An unbound save is bound to the seed only if it has at most this many checks done (a fresh career): a save from
 # another seed or a vanilla save loaded by mistake would otherwise send its progress as checks. The open start alone
@@ -96,6 +96,10 @@ class BridgeProtocolError(BridgeError):
 
 class DeliveryGapError(BridgeProtocolError):
     """TXN found the save's received index short of the item (another save was loaded): resync from the save."""
+
+
+class InventoryFullError(BridgeError):
+    """TXN GIVE found the squad inventory full (the shop's 300-item rule): the item waits, its index unchanged."""
 
 
 class IdentityMismatchError(BridgeError):
@@ -187,6 +191,8 @@ class BridgeConnection:
             raise GameNotReadyError(f"{request.split()[0]}: timeout")  # poll rereads the save and TXN skips what landed
         if reply == "ERR identity":
             raise IdentityMismatchError("another save was loaded")
+        if reply == "ERR full":
+            raise InventoryFullError(f"{request.split()[0]}: inventory full")
         if reply.startswith("ERR gap "):
             raise DeliveryGapError(f"{request!r}: {reply}")
         if reply.startswith("ERR "):
@@ -482,13 +488,15 @@ def sync_received_items(
     seed_name: str = "",
     *,
     identity: tuple[int, int],
+    on_full: Callable[[int], None] | None = None,
 ) -> int:
     """Deliver items after the save's durable received index, one TXN each, and return the new index.
 
     The bridge compares the save's identity and index, grants and advances the index in one game-thread step, so a
     failure mid-way (a load screen, a timeout, a lost reply) resumes at the first item not yet delivered and never
     grants twice. Gear levels depend only on the server's item order, so a replay (new game, older save) delivers the
-    same items at the same levels."""
+    same items at the same levels. A gear item that finds the inventory full stops delivery there (strict order: the
+    save holds one index) and `on_full` gets the number of items waiting; the next poll retries the same index."""
     saved_index = bridge.get_int(RECEIVED_INDEX_PLOT_INT)
     start_index = max(saved_index, 0)
     if saved_index < 0:
@@ -510,6 +518,10 @@ def sync_received_items(
                 log.info("Received item %s was already in the save (retry after a lost reply)", index)
         except DeliveryGapError as error:  # the save changed under us: the next poll starts from its index
             log.warning("Item delivery paused, the save's received index changed: %s", error)
+            return index
+        except InventoryFullError:
+            if on_full is not None:
+                on_full(len(received_items) - index)
             return index
         if item_id in GEAR_BY_ITEM_ID:
             gear_seen += 1
@@ -653,6 +665,7 @@ class ME1Context(CommonContext):
     summary_pending: tuple[list[str], list[str]] | None = None
     summary_next: list[list[str]] = []  # the F7 summary's pages after the one shown (F7 on an open page shows the next)
     notices_reset = False  # set by /notices: drop queued sends (and notices, when off) on the next poll
+    inventory_full_pending = 0  # received items waiting behind a gear item that found the inventory full (v13)
     shop_scouted = False  # LocationScouts sent for this connection's shop slots
     shop_labels_sent = False  # the bridge holds the current shop labels (reset on reconnects and new scout results)
     notice_level = "all"  # /notices: all, important or off
@@ -868,8 +881,11 @@ class ME1Context(CommonContext):
             if not self._check_identity(identity, snapshot):
                 return set(), False
             items = tuple(self.items_received)
-            sync_received_items(self.bridge, items, gear_total=self.gear_total,
-                                seed_name=getattr(self, "seed_name", None) or "", identity=identity)
+            waiting: list[int] = []
+            delivered = sync_received_items(self.bridge, items, gear_total=self.gear_total,
+                                            seed_name=getattr(self, "seed_name", None) or "", identity=identity,
+                                            on_full=waiting.append)
+            self._inventory_full_notice(waiting[0] if waiting else 0, delivered == len(items))
             if self.unlock_containers and not self.bridge.get_bool(UNLOCK_CONTAINERS_PLOT_BOOL):
                 self.bridge.set_bool(UNLOCK_CONTAINERS_PLOT_BOOL, True)
                 logger.info("Unlock Containers: Decryption containers now open like plain ones")
@@ -910,6 +926,21 @@ class ME1Context(CommonContext):
                 self.notices.clear()
                 self.sends_pending.clear()
         return true_locations, goal_complete
+
+    def _inventory_full_notice(self, waiting: int, all_delivered: bool) -> None:
+        """Tell the player once per count while gear waits for room, and once when the waiting items arrived. Each HUD
+        notice is one line of NOTICE_LINE_CHARS (a longer text shows as several notices that replace each other)."""
+        if waiting:
+            if waiting != self.inventory_full_pending:
+                logger.warning("Inventory full (300 items): %s received item(s) wait. Sell gear or convert it to "
+                               "omni-gel; they arrive in order a few seconds later.", waiting)
+                self.notify("Inventory full")
+                self.notify(f"{waiting} items waiting")
+            self.inventory_full_pending = waiting
+        elif all_delivered and self.inventory_full_pending:
+            logger.info("Inventory has room: %s waiting item(s) delivered", self.inventory_full_pending)
+            self.notify(f"Got {self.inventory_full_pending} items")
+            self.inventory_full_pending = 0
 
     def _tracker_notices(self, items: Sequence) -> None:
         """Queue the F7 summary and a notice for each newly entered area (both computed from the rebuilt logic)."""
