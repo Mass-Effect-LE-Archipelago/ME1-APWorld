@@ -54,3 +54,6 @@ Open an [issue](../../issues) and include:
 - `tools/release/`: the release packaging script and the bridge installer.
 
 The game mod and the bridge ship as built files on the release page.
+
+## AI Disclosure
+AI was used to aid in the research and development of this multiworld.
