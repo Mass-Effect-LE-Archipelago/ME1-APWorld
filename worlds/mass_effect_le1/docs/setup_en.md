@@ -8,7 +8,7 @@ Version 0.2 (beta test). Tested on the Steam release of Mass Effect Legendary Ed
 - [Archipelago](https://github.com/ArchipelagoMW/Archipelago/releases) 0.6.8 or newer.
 - [ME3Tweaks Mod Manager](https://me3tweaks.com/modmanager/), once, for its ASI Manager (the ASI loader and LE1
   Autoload Enabler). With the setup app you do not need it for anything else.
-- From the [latest release](https://gitlab.com/unowa001/ArchipelagoME1/-/releases/permalink/latest): either
+- From the [latest release](https://github.com/Mass-Effect-LE-Archipelago/ME1-APWorld/releases/latest): either
   `MassEffectAPSetup-<version>-ME1.zip` (the setup app, recommended), or the four separate files for a manual install
   (see "Manual install").
 
@@ -120,9 +120,9 @@ visited have no slots); from 0.1.x, start a new career.
 The setup app also has a Mass Effect 2 profile. **It is EXPERIMENTAL**: its install and uninstall are tested in scratch
 folders only, not in game with this app. To try it, download `MassEffectAPSetup-<version>-ME2-experimental.zip` from the
 release, unzip it next to (or instead of) the ME1 zip, and pick Mass Effect 2. Its payload is the
-[ArchipelagoME2 0.2.2](https://gitlab.com/unowa001/ArchipelagoME2/-/releases/v0.2.2) release: the ME2 apworld (with its
+[ArchipelagoME2 0.2.2](https://github.com/Mass-Effect-LE-Archipelago/ME2-APWorld/releases/tag/v0.2.2) release: the ME2 apworld (with its
 client), the LE2 bridge, the ME2 mod and its ASI loader. Please report problems at
-https://gitlab.com/unowa001/ArchipelagoME1/-/issues. Mass Effect 3 is not supported yet.
+https://github.com/Mass-Effect-LE-Archipelago/ME1-APWorld/issues. Mass Effect 3 is not supported yet.
 
 ## Uninstall
 
