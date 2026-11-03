@@ -181,8 +181,8 @@ class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
         self.assertTrue(self.can_reach_region(Region.VIRMIRE.value))
 
     def test_freed_slots_go_to_fragments_room(self) -> None:
-        # 23 locations - 4 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 8
-        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 8)
+        # 23 locations - 1 on Ilos (no own progression) - 4 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 7
+        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 7)
 
 
 class TestGearDraw(MassEffectLE1TestBase):
@@ -297,8 +297,6 @@ class TestJournalsanity(MassEffectLE1TestBase):
     def test_squad_quest_needs_its_squadmate(self) -> None:
         self.assertFalse(self.can_reach_location("Wrex: Family Armor: Started"))
         self.collect_by_name(["Urdnot Wrex"])
-        self.assertFalse(self.can_reach_location("Wrex: Family Armor: Started"))  # a later talk: uncharted landings
-        self.collect(self.multiworld.get_location(EVENT_ACT1, self.player).item)
         self.assertTrue(self.can_reach_location("Wrex: Family Armor: Started"))
 
 
@@ -426,13 +424,6 @@ class TestSquadTalk(MassEffectLE1TestBase):
         self.collect_by_name(["Liara T'Soni"])
         self.assertTrue(self.can_reach_location("Codex: Aliens: Extinct Races: Protheans: Beacon"))
 
-    def test_later_talk_needs_uncharted_landings(self) -> None:
-        page = "Codex: Aliens: Council Races: Turians: Biology"
-        self.collect_by_name(["Garrus Vakarian"])
-        self.assertFalse(self.can_reach_location(page))
-        self.collect_event(EVENT_ACT1)
-        self.assertTrue(self.can_reach_location(page))
-
     def test_finished_missions_are_counted(self) -> None:
         page = "Codex: Technology: Biotics: Training"
         self.collect_by_name(["Kaidan Alenko"])
@@ -453,9 +444,11 @@ class TestSquadTalkMakoShuffled(MassEffectLE1TestBase):
     options = {"mako_shuffled": True}
 
     def test_later_talk_needs_the_mako(self) -> None:
-        page = "Codex: Aliens: Council Races: Turians: Biology"
-        self.collect_by_name(["Garrus Vakarian"])
-        self.collect(self.multiworld.get_location(EVENT_ACT1, self.player).item)
-        self.assertFalse(self.can_reach_location(page))
+        """Uncharted landings need Act 1 (open from the start: collecting sweeps it) and the Mako."""
+        later = ("Codex: Aliens: Council Races: Turians: Biology", "Wrex: Family Armor: Started")
+        self.collect_by_name(["Garrus Vakarian", "Urdnot Wrex"])
+        for name in later:
+            self.assertFalse(self.can_reach_location(name), name)
         self.collect_by_name([MAKO])
-        self.assertTrue(self.can_reach_location(page))
+        for name in later:
+            self.assertTrue(self.can_reach_location(name), name)
