@@ -1,0 +1,218 @@
+"""Read and write Mass Effect LE1 packages (.pcc) without Legendary Explorer.
+
+A package is read into its uncompressed image (the bytes the engine works on), edited in place by size-preserving
+patches, and written back compressed with the same chunk layout. Oodle blocks go through oodle.ps1, which calls the
+game's own oo2core DLL (Windows PowerShell; from WSL through powershell.exe).
+"""
+from __future__ import annotations
+
+import os
+import shutil
+import struct
+import subprocess
+import tempfile
+from dataclasses import dataclass, field
+
+TAG = 0x9E2A83C1
+OODLE = 0x400
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+@dataclass
+class Header:
+    name_count: int
+    name_off: int
+    export_count: int
+    export_off: int
+    import_count: int
+    import_off: int
+    compression: int
+    chunk_table_off: int  # file offset of the first chunk entry; the chunk count is the int before it
+    chunks: list[tuple[int, int, int, int]]  # (uncompressed offset, uncompressed size, file offset, file size)
+
+
+def read_header(data: bytes) -> Header:
+    if struct.unpack_from("<I", data, 0)[0] != TAG:
+        raise ValueError("not a package")
+    group_len = struct.unpack_from("<i", data, 12)[0]
+    o = 16 + group_len
+    flags, names, name_off, exports, export_off, imports, import_off = struct.unpack_from("<7I", data, o)
+    o += 48 + 16  # 12 ints (flags .. thumbnail table) + package GUID
+    generations = struct.unpack_from("<i", data, o)[0]
+    o += 4 + 12 * generations
+    o += 16  # engine version, cooker version, two LE1 ints
+    compression, count = struct.unpack_from("<II", data, o)
+    o += 8
+    chunks = [struct.unpack_from("<4I", data, o + 16 * i) for i in range(count)]
+    return Header(names, name_off, exports, export_off, imports, import_off, compression, o, chunks)
+
+
+@dataclass
+class Export:
+    index: int  # 1-based
+    class_index: int
+    outer: int
+    name: str
+    size: int
+    offset: int  # in the uncompressed image
+    entry_offset: int  # this entry's position in the export table
+
+
+@dataclass
+class Package:
+    path: str
+    raw: bytes  # the file as read
+    header: Header
+    image: bytearray  # uncompressed bytes
+    names: list[str] = field(default_factory=list)
+    imports: list[tuple[str, str, int]] = field(default_factory=list)  # (class, name, outer)
+    exports: list[Export] = field(default_factory=list)
+
+    def object_name(self, index: int) -> str:
+        if index > 0:
+            return self.exports[index - 1].name
+        if index < 0:
+            return self.imports[-index - 1][1]
+        return ""
+
+    def full_name(self, index: int) -> str:
+        parts = []
+        while index:
+            parts.append(self.object_name(index))
+            index = self.exports[index - 1].outer if index > 0 else self.imports[-index - 1][2]
+        return ".".join(reversed(parts))
+
+    def class_name(self, export: Export) -> str:
+        return self.object_name(export.class_index) if export.class_index else "Class"
+
+    def find(self, class_name: str, full_name: str) -> Export:
+        for export in self.exports:
+            if self.class_name(export) == class_name and self.full_name(export.index) == full_name:
+                return export
+        raise KeyError(f"{class_name} {full_name} not in {os.path.basename(self.path)}")
+
+    def name_index(self, name: str) -> int:
+        return self.names.index(name)
+
+
+def _name(names: list[str], index: int, number: int) -> str:
+    return names[index] + (f"_{number - 1}" if number > 0 else "")
+
+
+def _parse_tables(pkg: Package) -> None:
+    d, h = pkg.image, pkg.header
+    o = h.name_off
+    for _ in range(h.name_count):
+        n = struct.unpack_from("<i", d, o)[0]
+        o += 4
+        if n < 0:
+            pkg.names.append(bytes(d[o:o - 2 * n]).decode("utf-16-le").rstrip("\0"))
+            o += -2 * n
+        else:
+            pkg.names.append(bytes(d[o:o + n]).decode("latin-1").rstrip("\0"))
+            o += n
+    o = h.import_off
+    for _ in range(h.import_count):
+        _pkg, _, cls, _, outer, name, number = struct.unpack_from("<7i", d, o)
+        pkg.imports.append((pkg.names[cls], _name(pkg.names, name, number), outer))
+        o += 28
+    o = h.export_off
+    for i in range(1, h.export_count + 1):
+        start = o
+        cls, _super, outer, name, number, _arch = struct.unpack_from("<6i", d, o)
+        size, offset = struct.unpack_from("<ii", d, o + 32)
+        generations = struct.unpack_from("<i", d, o + 44)[0]
+        o += 48 + 4 * generations + 16 + 4  # entry, generation net object counts, package GUID, package flags
+        pkg.exports.append(Export(i, cls, outer, _name(pkg.names, name, number), size, offset, start))
+
+
+def _run_oodle(mode: str, blocks: list[tuple[bytes, int]], dll: str) -> list[bytes]:
+    tmp = tempfile.mkdtemp(prefix="le1oodle")
+    try:
+        jobs, out = os.path.join(tmp, "jobs.bin"), os.path.join(tmp, "out.bin")
+        with open(jobs, "wb") as w:
+            w.write(struct.pack("<i", len(blocks)))
+            for data, out_size in blocks:
+                w.write(struct.pack("<ii", len(data), out_size))
+                w.write(data)
+        subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", _host_path(os.path.join(HERE, "oodle.ps1")),
+                        "-Dll", _host_path(dll), "-Mode", mode, "-Jobs", _host_path(jobs), "-Out", _host_path(out)],
+                       check=True, stdout=subprocess.DEVNULL)
+        result, data, o = [], open(out, "rb").read(), 0
+        for _ in blocks:
+            n = struct.unpack_from("<i", data, o)[0]
+            result.append(data[o + 4:o + 4 + n])
+            o += 4 + n
+        return result
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _host_path(path: str) -> str:
+    """A path Windows PowerShell can open (WSL paths go through wslpath)."""
+    if os.name == "nt":
+        return path
+    return subprocess.check_output(["wslpath", "-w", path], text=True).strip()
+
+
+def _chunk_blocks(data: bytes, offset: int) -> tuple[int, list[tuple[bytes, int]]]:
+    tag, block_size, _csize, usize = struct.unpack_from("<4I", data, offset)
+    if tag != TAG:
+        raise ValueError(f"bad chunk tag at {offset}")
+    count = (usize + block_size - 1) // block_size
+    sizes = [struct.unpack_from("<II", data, offset + 16 + 8 * i) for i in range(count)]
+    o, blocks = offset + 16 + 8 * count, []
+    for csize, usize_block in sizes:
+        blocks.append((data[o:o + csize], usize_block))
+        o += csize
+    return block_size, blocks
+
+
+def read(path: str, dll: str) -> Package:
+    raw = open(path, "rb").read()
+    header = read_header(raw)
+    if header.compression == 0:
+        image = bytearray(raw)
+    else:
+        if header.compression != OODLE:
+            raise ValueError(f"{path}: compression {header.compression:#x} is not Oodle")
+        per_chunk = [_chunk_blocks(raw, c[2])[1] for c in header.chunks]
+        decoded = iter(_run_oodle("decompress", [b for blocks in per_chunk for b in blocks], dll))
+        image = bytearray(max(u + s for u, s, _, _ in header.chunks))
+        first = header.chunks[0][0]
+        tail_len = first - header.chunk_table_off  # source/additional-packages fields after the chunk table
+        image[:header.chunk_table_off] = raw[:header.chunk_table_off]
+        struct.pack_into("<I", image, header.chunk_table_off - 4, 0)
+        image[header.chunk_table_off:first] = raw[header.chunk_table_off + 16 * len(header.chunks):
+                                                 header.chunk_table_off + 16 * len(header.chunks) + tail_len]
+        for (uoff, usize, _, _), blocks in zip(header.chunks, per_chunk):
+            image[uoff:uoff + usize] = b"".join(next(decoded) for _ in blocks)
+    pkg = Package(path, raw, header, image)
+    _parse_tables(pkg)
+    return pkg
+
+
+def write(pkg: Package, path: str, dll: str) -> None:
+    """Compress the image back into the original chunk layout (same chunk ranges and block size)."""
+    h, raw = pkg.header, pkg.raw
+    if h.compression == 0:
+        open(path, "wb").write(bytes(pkg.image))
+        return
+    plan = []  # per chunk: block size and the uncompressed blocks
+    for uoff, usize, coff, _ in h.chunks:
+        block_size, _ = _chunk_blocks(raw, coff)
+        plan.append((block_size, [bytes(pkg.image[s:min(s + block_size, uoff + usize)])
+                                  for s in range(uoff, uoff + usize, block_size)]))
+    encoded = iter(_run_oodle("compress", [(b, 0) for _, blocks in plan for b in blocks], dll))
+    table_end = h.chunk_table_off + 16 * len(h.chunks)
+    tail = raw[table_end:h.chunks[0][2]]
+    out = bytearray(raw[:h.chunk_table_off]) + bytearray(16 * len(h.chunks)) + bytearray(tail)
+    for i, ((uoff, usize, _, _), (block_size, blocks)) in enumerate(zip(h.chunks, plan)):
+        packed = [next(encoded) for _ in blocks]
+        body = struct.pack("<4I", TAG, block_size, sum(map(len, packed)), usize)
+        body += b"".join(struct.pack("<II", len(c), len(u)) for c, u in zip(packed, blocks)) + b"".join(packed)
+        struct.pack_into("<4I", out, h.chunk_table_off + 16 * i, uoff, usize, len(out), len(body))
+        out += body
+    end = max(c + s for _, _, c, s in h.chunks)
+    out += raw[end:]  # anything stored after the last chunk
+    open(path, "wb").write(bytes(out))

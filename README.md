@@ -2,7 +2,7 @@
 
 An [Archipelago](https://archipelago.gg) multiworld randomizer for Mass Effect 1 in Mass Effect Legendary Edition.
 
-**Status: beta test (0.2.5).** It's playable from start to finish on the Steam release (English). Expect bugs.
+**Status: beta test (0.2.6).** It's playable from start to finish on the Steam release (English). Expect bugs.
 
 ## What changes
 
@@ -51,9 +51,46 @@ Open an [issue](../../issues) and include:
 ## Repository layout
 
 - `worlds/mass_effect_le1/`: the Archipelago world (logic, items, locations, options) and the client.
+- `mod/`: the game mod (`DLC_MOD_ArchipelagoME1`); `tools/le1mod/` applies this repo's patches to it.
+- `tools/le1apbridge/`: the bridge (`LE1APBridge.asi`, built) and its checks table.
 - `tools/release/`: the release packaging script and the bridge installer.
+- `tools/setup/`: the source of Mass Effect AP Setup, the setup app.
+- `vendor/`: Archipelago and LegendaryExplorer as pinned submodules.
 
-The game mod and the bridge ship as built files on the release page.
+## Development
+
+Everything comes from this repository. Clone it with its submodules:
+
+```
+git clone --recurse-submodules <this repo>
+```
+
+Set up Archipelago's environment once (Python 3.11 or newer): `python -m venv vendor/Archipelago/.venv`, then install
+`vendor/Archipelago/requirements.txt` and `pytest` into it.
+
+- Tests: `python tools/test_world.py`.
+- Game mod patches: `python tools/le1mod/build_mod.py <LE1 game folder>` (see `tools/le1mod/README.md`).
+- Release: `python tools/release/build_release.py <version>` writes the apworld, the YAML template, the mod zip, the
+  bridge zip and `SHA256SUMS` to `build/release-<version>/`, after checking that the packaged apworld generates.
+- Setup app: `python tools/setup/package.py <app version>` (see `tools/setup/README.md`).
+
+## Credits
+
+- **Original project:** [ME1-APWorld](https://github.com/Mass-Effect-LE-Archipelago/ME1-APWorld) by Jerrod
+  (Unowa001): the world, the client, the game mod, the bridge and the setup app. This repository is a fork by Tyler
+  Kessler; the changes since 0.2.5 (squadmates only through items, squad conversation logic, Ilos item rules, building
+  the mod and releases from the repository) are in its history.
+- **Contributors:** poststructural.
+- [Archipelago](https://archipelago.gg): the multiworld framework (MIT).
+- [ME3Tweaks](https://me3tweaks.com): Legendary Explorer (LegendaryExplorerCore, GPL-3.0, which the setup app is built
+  with) and Mod Manager.
+- [Trilogy Save Editor](https://github.com/KarlitosVII/trilogy-save-editor) by KarlitosVII: its Mass Effect plot
+  database, used as a reference for plot flags.
+- [Nexus Mods mod 2422](https://www.nexusmods.com/masseffectlegendaryedition/mods/2422): the way the galaxy-map travel
+  videos are skipped.
+
+This is an unofficial fan project. It is not affiliated with or endorsed by BioWare or Electronic Arts. You need your own
+copy of Mass Effect Legendary Edition (PC).
 
 ## AI Disclosure
 AI was used to aid in the research and development of this multiworld.

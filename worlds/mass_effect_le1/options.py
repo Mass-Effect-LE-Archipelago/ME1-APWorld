@@ -138,6 +138,15 @@ class FinishedMissionChecks(Choice):
     default = 0
 
 
+class IlosUsefulItems(DefaultOnToggle):
+    """Landing on Ilos starts the finale, with no way back. Ilos never holds this game's progression items (other
+    games' items can be there).
+
+    On: Ilos can hold this game's gear and upgrades. Off: only filler and other games' items."""
+
+    display_name = "Gear on Ilos"
+
+
 class ShopSlots(Range):
     """Archipelago Items for sale at each merchant (ten merchants: Normandy, Citadel, Noveria, Feros, Virmire), a few
     hundred credits each. Buying one sends its item. The slots appear in a shop's stock the first time you visit it, so
@@ -171,6 +180,7 @@ class MassEffectLE1Options(PerGameCommonOptions):
     aid_stations: AidStations
     unlock_containers: UnlockContainers
     finished_mission_checks: FinishedMissionChecks
+    ilos_useful_items: IlosUsefulItems
     shop_slots: ShopSlots
     gear_pool: GearPool
     upgrade_count: UpgradeCount
@@ -207,7 +217,7 @@ option_groups = [
     OptionGroup("Goal", [FragmentsTotal, FragmentsRequired]),
     OptionGroup("Logic", [RequiredSquadSize, MakoShuffled, HumanSquadAtCitadel, BringDownTheSky]),
     OptionGroup("Checks", [Codexsanity, Journalsanity, Containersanity, AidStations, UnlockContainers, FinishedMissionChecks,
-                            ShopSlots]),
+                            IlosUsefulItems, ShopSlots]),
     OptionGroup("Items", [GearPool, UpgradeCount]),
     OptionGroup("Quality of Life", [InfiniteSprint]),
 ]

@@ -36,9 +36,12 @@ def create_items(world: MassEffectLE1World) -> None:
         # generate_early already guarantees room; this guards future table edits
         raise RuntimeError(f"{data.GAME_NAME}: {len(pool)} items for {unfilled} locations")
 
-    # Gear and upgrades are useful items: they cannot go to excluded locations, which keep that many filler slots.
+    # Gear and upgrades are useful items: they cannot go to excluded locations, nor to data.NO_RETURN_REGIONS with
+    # ilos_useful_items off, which keep that many filler slots.
+    no_return = {region.value for region in data.NO_RETURN_REGIONS}
     excluded = sum(1 for loc in world.multiworld.get_unfilled_locations(world.player)
-                   if loc.progress_type == LocationProgressType.EXCLUDED)
+                   if loc.progress_type == LocationProgressType.EXCLUDED
+                   or (not world.options.ilos_useful_items and loc.parent_region.name in no_return))
     room = unfilled - excluded
     gear = draw_gear(world, max(0, min(world.options.gear_pool.value, room - len(pool))))
     pool += [create_item(world, name) for name in gear]

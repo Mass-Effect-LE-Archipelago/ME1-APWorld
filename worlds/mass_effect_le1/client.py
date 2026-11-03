@@ -24,8 +24,8 @@ import Utils
 from CommonClient import ClientCommandProcessor, CommonContext, get_base_parser, gui_enabled, handle_url_arg, server_loop
 from NetUtils import ClientStatus
 
-from .data import (FRAGMENT, ID_BASE, ITEM_NAME_TO_ID, ITEMS, LOCATIONS, LOCATION_NAME_TO_ID, MAKO, SHOP_SLOTS_MAX, SHOPS,
-                   UPGRADE, Region, shop_bool)
+from .data import (FRAGMENT, HUMAN_SQUAD, ID_BASE, ITEM_NAME_TO_ID, ITEMS, LOCATIONS, LOCATION_NAME_TO_ID, MAKO,
+                   SHOP_SLOTS_MAX, SHOPS, UPGRADE, Region, shop_bool)
 from .gear import GEAR_LINES, UPGRADE_ROWS
 from .tracker import (MARKER_AREAS, MARKER_IN_LOGIC_BASE, MARKER_LOCKED_BASE, Tracker, area_line, area_region,
                       level_area, summary_lines)
@@ -41,13 +41,14 @@ NONCE_PLOT_INT = 2006  # bridge v12 NONCE: marks the save the client checks befo
 # Build identity (R13): the oldest bridge and mod this client works with. The bridge answers PING with its version; the
 # release writes the mod version into DLC_MOD_ArchipelagoME1\ArchipelagoME1.version, which the bridge reads (MODVER).
 BRIDGE_VERSION = 13  # v13: a GIVE into a full inventory answers ERR full and waits (v12 lost the item)
-MOD_VERSION = "0.2.4"
+MOD_VERSION = "0.2.6"
 # An unbound save is bound to the seed only if it has at most this many checks done (a fresh career): a save from
 # another seed or a vanilla save loaded by mistake would otherwise send its progress as checks. The open start alone
 # sets 6 (live 2026-10-26: the Started checks of Feros, Liara, Noveria, UNC Cerberus, Hostage and Rogue VI).
 BIND_MAX_TRUE_LOCATIONS = 10
 GOAL_PLOT_BOOL = 6530  # CH4 Final_Choice.Game_Complete: transition 5110 in the final speech (BIOA_CRD00, both Council outcomes); 2511 End_Game_Done is never set on LE1
 VIRMIRE_DONE_PLOT_BOOL = 2509
+VIRMIRE_SURVIVOR_PLOT_BOOLS = (3827, 3828)  # set by the Virmire choice, which removes one of Kaidan and Ashley
 ILOS_OPEN_PLOT_BOOL = 4103  # D5: set by the client once the fragment gate (and D9) is met
 UNLOCK_CONTAINERS_PLOT_BOOL = 20190  # the bridge opens Decryption containers like plain ones while this is set
 INFINITE_SPRINT_PLOT_BOOL = 20191  # bridge v9+ (fixed in v11): sprinting never drains stamina while this is set
@@ -528,6 +529,19 @@ def sync_received_items(
     return len(received_items)
 
 
+def sync_human_squad(bridge: ItemBridge) -> bool:
+    """Put Kaidan and Ashley in the party (human_squad_at_citadel: they are not items), until the Virmire choice."""
+    if any(bridge.get_bool(index) for index in VIRMIRE_SURVIVOR_PLOT_BOOLS):
+        return False
+    added = False
+    for name in HUMAN_SQUAD:
+        index = SQUAD_INPARTY_PLOT_BOOL[name]
+        if not bridge.get_bool(index):
+            bridge.set_bool(index, True)
+            added = True
+    return added
+
+
 def sync_ilos_gate(
     bridge: ItemBridge,
     received_items: Sequence[ReceivedItem],
@@ -659,6 +673,7 @@ class ME1Context(CommonContext):
     unlock_containers = False
     shop_slots: int | None = None  # from slot data on Connected
     mako_shuffled = False  # from slot data on Connected
+    human_squad_at_citadel = False  # from slot data on Connected
     tracker: Tracker | None = None  # the seed's logic, rebuilt on Connected (F7 summary, landing notices)
     tracker_enabled = True  # off if the bridge refuses MAP/KEYS (older than v10)
     # F7 summary waiting for the game: (message box lines, notice lines for a bridge older than v11)
@@ -709,6 +724,7 @@ class ME1Context(CommonContext):
             self.infinite_sprint = bool(slot_data.get("infinite_sprint", False))
             self.shop_slots = slot_data.get("shop_slots")
             self.mako_shuffled = bool(slot_data.get("mako_shuffled", False))
+            self.human_squad_at_citadel = bool(slot_data.get("human_squad_at_citadel", False))
             self._fragments_noticed = None
             self._last_area = None
             self.shop_scouted = self.shop_labels_sent = False
@@ -886,6 +902,8 @@ class ME1Context(CommonContext):
                                             seed_name=getattr(self, "seed_name", None) or "", identity=identity,
                                             on_full=waiting.append)
             self._inventory_full_notice(waiting[0] if waiting else 0, delivered == len(items))
+            if self.human_squad_at_citadel and sync_human_squad(self.bridge):
+                logger.info("Kaidan and Ashley joined the party (Kaidan and Ashley Join at the Citadel)")
             if self.unlock_containers and not self.bridge.get_bool(UNLOCK_CONTAINERS_PLOT_BOOL):
                 self.bridge.set_bool(UNLOCK_CONTAINERS_PLOT_BOOL, True)
                 logger.info("Unlock Containers: Decryption containers now open like plain ones")

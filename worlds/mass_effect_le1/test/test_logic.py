@@ -1,6 +1,7 @@
-from ..data import COORDINATES, EVENT_ACT1, EVENT_FEROS, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
-from BaseClasses import LocationProgressType
+from ..data import COORDINATES, EVENT_ACT1, EVENT_FEROS, EVENT_THERUM, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, MAKO, NO_RETURN_REGIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
+from BaseClasses import Item, ItemClassification, LocationProgressType
 from ..options import options_presets
+from ..squad_talk import TALK_GATES
 from . import MassEffectLE1TestBase
 
 
@@ -155,9 +156,9 @@ class TestFragmentClamping(MassEffectLE1TestBase):
                "aid_stations": False, "shop_slots": 0}
 
     def test_fragments_clamped_to_location_room(self) -> None:
-        # 23 locations - 6 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 6
-        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 6)
-        self.assertEqual(self.world.fragments_required, 6)
+        # 23 locations - 1 on Ilos (no own progression) - 6 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 5
+        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 5)
+        self.assertEqual(self.world.fragments_required, 5)
 
 
 class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
@@ -180,8 +181,8 @@ class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
         self.assertTrue(self.can_reach_region(Region.VIRMIRE.value))
 
     def test_freed_slots_go_to_fragments_room(self) -> None:
-        # 23 locations - 4 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 8
-        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 8)
+        # 23 locations - 1 on Ilos (no own progression) - 4 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 7
+        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 7)
 
 
 class TestGearDraw(MassEffectLE1TestBase):
@@ -229,9 +230,9 @@ class TestCodexsanity(MassEffectLE1TestBase):
     def test_full_codex_is_in_and_squad_pages_need_the_squadmate(self) -> None:
         codex = [loc for loc in self.multiworld.get_locations(self.player) if loc.name.startswith("Codex: ")]
         self.assertEqual(len(codex), 119)
-        page = next(name for name, loc in LOCATIONS.items() if loc.squad == "Garrus Vakarian")
+        page = next(name for name, loc in LOCATIONS.items() if loc.squad == "Liara T'Soni" and name not in TALK_GATES)
         self.assertFalse(self.can_reach_location(page))
-        self.collect_by_name(["Garrus Vakarian"])
+        self.collect_by_name(["Liara T'Soni"])
         self.assertTrue(self.can_reach_location(page))
 
     def test_uncharted_waits_for_act1(self) -> None:
@@ -359,3 +360,95 @@ class TestPresetStoryFocus(MassEffectLE1TestBase):
 
 class TestPresetCompletionist(MassEffectLE1TestBase):
     options = options_presets["Completionist"]
+
+
+class TestIlosNoReturn(MassEffectLE1TestBase):
+    """Ilos is a point of no return: never this world's progression; its gear by default; other games' items always."""
+
+    def no_return_locations(self) -> list:
+        return [location for region in NO_RETURN_REGIONS
+                for location in self.multiworld.get_region(region.value, self.player).locations
+                if location.address is not None]
+
+    def assert_allowed(self, item: Item, allowed: bool) -> None:
+        locations = self.no_return_locations()
+        self.assertGreater(len(locations), 1)  # the Conduit story check and Ilos containers
+        for location in locations:
+            self.assertEqual(location.item_rule(item), allowed, f"{item.name} at {location.name}")
+
+    def test_own_progression_never_on_ilos(self) -> None:
+        for name in (FRAGMENT, COORDINATES[Region.EDEN_PRIME], "Garrus Vakarian"):
+            self.assert_allowed(self.world.create_item(name), False)
+
+    def test_own_gear_and_filler(self) -> None:
+        for name in (next(iter(GEAR_BY_NAME)), UPGRADE, FILLER[0]):
+            self.assert_allowed(self.world.create_item(name), True)
+
+    def test_other_games_items_allowed(self) -> None:
+        self.assert_allowed(Item("Other Game Key", ItemClassification.progression, None, self.player + 1), True)
+
+    def test_other_locations_take_own_progression(self) -> None:
+        location = self.multiworld.get_location("Citadel: Recruit Garrus", self.player)
+        self.assertTrue(location.item_rule(self.world.create_item(FRAGMENT)))
+
+
+class TestIlosNoGear(TestIlosNoReturn):
+    options = {"ilos_useful_items": False}
+
+    def test_own_gear_and_filler(self) -> None:
+        for name in (next(iter(GEAR_BY_NAME)), UPGRADE):
+            self.assert_allowed(self.world.create_item(name), False)
+        self.assert_allowed(self.world.create_item(FILLER[0]), True)
+
+    def test_ilos_keeps_filler_room(self) -> None:
+        unfilled = self.multiworld.get_unfilled_locations(self.player)
+        reserved = sum(1 for location in unfilled if location.progress_type == LocationProgressType.EXCLUDED
+                       or location in self.no_return_locations())
+        useful = sum(1 for item in self.multiworld.itempool if item.player == self.player and item.useful)
+        self.assertLessEqual(useful, len(unfilled) - reserved - sum(
+            1 for item in self.multiworld.itempool if item.player == self.player and item.advancement))
+
+
+class TestSquadTalk(MassEffectLE1TestBase):
+    """Squadmate conversation checks (squad_talk.TALK_GATES) on top of the squadmate item."""
+
+    def collect_event(self, name: str) -> None:
+        self.collect(self.multiworld.get_location(name, self.player).item)
+
+    def test_gates_name_squad_locations(self) -> None:
+        for name in TALK_GATES:
+            self.assertIn(name, LOCATIONS)
+            self.assertIsNotNone(LOCATIONS[name].squad, name)
+
+    def test_first_talk_needs_only_the_squadmate(self) -> None:
+        self.collect_by_name(["Liara T'Soni"])
+        self.assertTrue(self.can_reach_location("Codex: Aliens: Extinct Races: Protheans: Beacon"))
+
+    def test_finished_missions_are_counted(self) -> None:
+        page = "Codex: Technology: Biotics: Training"
+        self.collect_by_name(["Kaidan Alenko"])
+        self.assertFalse(self.can_reach_location(page))
+        self.collect_by_name([COORDINATES[Region.THERUM], "Garrus Vakarian", "Urdnot Wrex"])
+        self.assertTrue(self.can_reach_region(Region.THERUM.value))
+        self.collect_event(EVENT_THERUM)
+        self.assertTrue(self.can_reach_location(page))
+
+    def test_choice_pages_hold_filler_only(self) -> None:
+        for name, gate in TALK_GATES.items():
+            if gate.choice:
+                self.assertEqual(self.multiworld.get_location(name, self.player).progress_type,
+                                 LocationProgressType.EXCLUDED, name)
+
+
+class TestSquadTalkMakoShuffled(MassEffectLE1TestBase):
+    options = {"mako_shuffled": True}
+
+    def test_later_talk_needs_the_mako(self) -> None:
+        """Uncharted landings need Act 1 (open from the start: collecting sweeps it) and the Mako."""
+        later = ("Codex: Aliens: Council Races: Turians: Biology", "Wrex: Family Armor: Started")
+        self.collect_by_name(["Garrus Vakarian", "Urdnot Wrex"])
+        for name in later:
+            self.assertFalse(self.can_reach_location(name), name)
+        self.collect_by_name([MAKO])
+        for name in later:
+            self.assertTrue(self.can_reach_location(name), name)
