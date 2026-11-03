@@ -134,29 +134,44 @@ def closes_with_mission(name: str, loc: data.LocationData) -> bool:
     return closed_after_mission(name, loc)
 
 
-def closing_item_allowed(world: MassEffectLE1World, item: Item) -> bool:
-    """Whether a closes_with_mission location may hold this item (finished_mission_checks: no_progression): this
-    world's items but its progression, and other players' filler."""
+def missable_codex(name: str, loc: data.LocationData) -> bool:
+    """A codex page that can be missed for good: Joker's prologue pages (MISSABLE_CODEX), and squadmate pages that need
+    a dialogue or romance choice or the squadmate alive after Virmire (squad_talk.TalkGate.choice)."""
+    if name in MISSABLE_CODEX:
+        return True
+    gate = squad_talk.TALK_GATES.get(name)
+    return gate is not None and gate.choice and loc.codex is not None
+
+
+def no_progression_rule(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
+    """Gets the no_progression_item_allowed rule: a missable codex page, or a check that closes with its mission under
+    finished_mission_checks no_progression."""
+    if location_excluded(world, name, loc):
+        return False
+    return missable_codex(name, loc) or (
+        world.options.finished_mission_checks == world.options.finished_mission_checks.option_no_progression
+        and closes_with_mission(name, loc))
+
+
+def no_progression_item_allowed(world: MassEffectLE1World, item: Item) -> bool:
+    """Whether a no_progression_rule location may hold this item: this world's items but its progression, and other
+    players' filler."""
     if item.player == world.player:
         return not item.advancement
     return item.excludable
 
 
 def holds_no_progression(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
-    """Never holds this world's progression: filler only (location_excluded), or closes with its mission under
-    finished_mission_checks no_progression."""
-    if location_excluded(world, name, loc):
-        return True
-    return (world.options.finished_mission_checks == world.options.finished_mission_checks.option_no_progression
-            and closes_with_mission(name, loc))
+    """Never holds this world's progression: filler only (location_excluded) or no_progression_rule."""
+    return location_excluded(world, name, loc) or no_progression_rule(world, name, loc)
 
 
 def location_excluded(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
-    """Filler only: a story choice can skip it, it is missable (MISSABLE_CODEX), its planet's landing condition is
-    unverified, or it closes with its mission (finished_mission_checks: filler_only)."""
-    if loc.excluded or name in MISSABLE_CODEX or uncharted.location_unverified(name):
+    """Filler only: a story choice can skip it, a squadmate quest needs a choice (squad_talk.TalkGate.choice), its
+    planet's landing condition is unverified, or it closes with its mission (finished_mission_checks: filler_only)."""
+    if loc.excluded or uncharted.location_unverified(name):
         return True
-    if (gate := squad_talk.TALK_GATES.get(name)) is not None and gate.choice:
+    if (gate := squad_talk.TALK_GATES.get(name)) is not None and gate.choice and loc.codex is None:
         return True
     return (world.options.finished_mission_checks == world.options.finished_mission_checks.option_filler_only
             and closes_with_mission(name, loc))
@@ -192,9 +207,8 @@ def create_regions(world: MassEffectLE1World) -> None:
             location.progress_type = LocationProgressType.EXCLUDED
         if loc.region in data.NO_RETURN_REGIONS:
             add_item_rule(location, lambda item: no_return_item_allowed(world, item))
-        elif (world.options.finished_mission_checks == world.options.finished_mission_checks.option_no_progression
-              and closes_with_mission(name, loc)):
-            add_item_rule(location, lambda item: closing_item_allowed(world, item))
+        elif no_progression_rule(world, name, loc):
+            add_item_rule(location, lambda item: no_progression_item_allowed(world, item))
         regions[loc.region].locations.append(location)
 
     _add_event(world, regions[R.CITADEL], data.EVENT_ACT1)

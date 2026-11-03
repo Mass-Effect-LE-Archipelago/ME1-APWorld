@@ -137,10 +137,12 @@ class TestUnchartedGates(MassEffectLE1TestBase):
                                ("Feros: Zhu's Hope Merchant Slot 1", False)):
             self.assertEqual(takes_own_progression(self, name), not closed, name)
 
-    def test_joker_prologue_pages_hold_filler_only(self) -> None:
+    def test_joker_prologue_pages_hold_no_progression(self) -> None:
         for name in ("Codex: Humanity and the Systems Alliance: Systems Alliance",
                      "Codex: Humanity and the Systems Alliance: Timeline"):
-            self.assertEqual(self.multiworld.get_location(name, self.player).progress_type, LocationProgressType.EXCLUDED, name)
+            location = self.multiworld.get_location(name, self.player)
+            self.assertFalse(takes_own_progression(self, name), name)
+            self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))), name)
 
     def test_genophage_needs_wrex(self) -> None:
         name = "Virmire: Wrex and the Genophage: Started"
@@ -480,21 +482,25 @@ class TestSquadTalk(MassEffectLE1TestBase):
 
     def test_virmire_survivor_pages(self) -> None:
         """Pages only Kaidan, Ashley or Wrex give are lost if they die on Virmire; pages with another source are not."""
-        for name, excluded in (("Codex: Technology: Biotics: Training", True),
+        for name, missable in (("Codex: Technology: Biotics: Training", True),
                                ("Codex: Ships and Vehicles: Space Combat: Planetary Assaults", True),
                                ("Codex: Aliens: Non-Council Races: Krogan: Culture", True),
                                ("Codex: Technology: Mass Effect Fields", False),
                                ("Codex: Humanity and the Systems Alliance: Human Diplomatic Relations", False),
                                ("Codex: Weapons, Armor and Equipment: Body Armor", False),
                                ("Codex: Aliens: Non-Council Races: Krogan: Genophage", False)):
-            progress = self.multiworld.get_location(name, self.player).progress_type
-            self.assertEqual(progress == LocationProgressType.EXCLUDED, excluded, name)
+            self.assertEqual(takes_own_progression(self, name), not missable, name)
 
-    def test_choice_pages_hold_filler_only(self) -> None:
+    def test_choice_checks_hold_no_progression(self) -> None:
+        """Codex pages get the no-progression rule (this world's gear allowed); quests hold filler only."""
         for name, gate in TALK_GATES.items():
             if gate.choice:
-                self.assertEqual(self.multiworld.get_location(name, self.player).progress_type,
-                                 LocationProgressType.EXCLUDED, name)
+                location = self.multiworld.get_location(name, self.player)
+                self.assertFalse(takes_own_progression(self, name), name)
+                page = LOCATIONS[name].codex is not None
+                self.assertEqual(location.progress_type == LocationProgressType.EXCLUDED, not page, name)
+                if page:
+                    self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))), name)
 
 
 class TestSquadTalkMakoShuffled(MassEffectLE1TestBase):

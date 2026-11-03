@@ -15,7 +15,9 @@ from typing import NamedTuple
 class TalkGate(NamedTuple):
     uncharted: bool = False  # needs uncharted landings: a later talk stage, or a flag set on an uncharted world
     missions: int = 0  # how many of Therum, Feros and Noveria must be finished (the conversation checks)
-    choice: bool = False  # also needs a romance or dialogue-point choice, or the squadmate alive after Virmire: filler
+    # Also needs a romance or dialogue-point choice, or the squadmate alive after Virmire: codex pages hold no
+    # progression (regions.missable_codex), quests filler only.
+    choice: bool = False
 
 
 TALK_GATES: dict[str, TalkGate] = {
