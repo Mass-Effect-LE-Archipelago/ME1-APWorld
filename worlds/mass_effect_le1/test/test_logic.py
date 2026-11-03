@@ -110,6 +110,11 @@ class TestUnchartedGates(MassEffectLE1TestBase):
                      "Codex: Aliens: Non-Sapient Creatures: Husks", "Asteroid X57: Bring Down the Sky"):  # on the way, or also found elsewhere: normal
             self.assertEqual(self.multiworld.get_location(name, self.player).progress_type, LocationProgressType.DEFAULT, name)
 
+    def test_joker_prologue_pages_hold_filler_only(self) -> None:
+        for name in ("Codex: Humanity and the Systems Alliance: Systems Alliance",
+                     "Codex: Humanity and the Systems Alliance: Timeline"):
+            self.assertEqual(self.multiworld.get_location(name, self.player).progress_type, LocationProgressType.EXCLUDED, name)
+
     def test_genophage_needs_wrex(self) -> None:
         name = "Virmire: Wrex and the Genophage: Started"
         self.collect_by_name([COORDINATES[Region.VIRMIRE], "Kaidan Alenko", "Ashley Williams"])

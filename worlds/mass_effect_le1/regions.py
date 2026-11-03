@@ -81,11 +81,18 @@ MISSION_ONLY_CODEX = frozenset({
     "Codex: Aliens: Council Races: Salarians: Military Doctrine",
 })
 
+# Joker's prologue conversation (nor10_joker_dlg) plays only while int 13 is 10101 and bool 3214 is unset, which the open
+# start leaves in place until Udina's office on the first Citadel visit sets 3214.
+MISSABLE_CODEX = frozenset({
+    "Codex: Humanity and the Systems Alliance: Systems Alliance",
+    "Codex: Humanity and the Systems Alliance: Timeline",
+})
+
 
 def location_excluded(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
-    """Filler only: a story choice can skip it, its planet's landing condition is unverified, or it is left behind
-    for good when its mission ends (finished_mission_checks: filler_only)."""
-    if loc.excluded or uncharted.location_unverified(name):
+    """Filler only: a story choice can skip it, it is missable (MISSABLE_CODEX), its planet's landing condition is
+    unverified, or it is left behind for good when its mission ends (finished_mission_checks: filler_only)."""
+    if loc.excluded or name in MISSABLE_CODEX or uncharted.location_unverified(name):
         return True
     if (gate := squad_talk.TALK_GATES.get(name)) is not None and gate.choice:
         return True
