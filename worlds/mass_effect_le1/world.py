@@ -38,10 +38,11 @@ class MassEffectLE1World(World):
 
     def generate_early(self) -> None:
         bdts = bool(self.options.bring_down_the_sky)
-        # Excluded locations (journal completions, unverified planets, finished missions) only take filler, and Ilos
-        # (point of no return) never takes this world's progression, so neither counts as room for it.
+        # Locations that never take this world's progression (regions.holds_no_progression, and Ilos, the point of no
+        # return) don't count as room for it.
         location_count = sum(1 for name, loc in data.LOCATIONS.items()
-                             if regions.location_included(self, loc) and not regions.location_excluded(self, name, loc)
+                             if regions.location_included(self, loc)
+                             and not regions.holds_no_progression(self, name, loc)
                              and loc.region not in data.NO_RETURN_REGIONS)
         squad_items = len(data.SQUAD) - (len(data.HUMAN_SQUAD) if self.options.human_squad_at_citadel else 0)
         fixed_items = squad_items + len(data.COORDINATES) - (0 if bdts else 1) + int(bool(self.options.mako_shuffled))

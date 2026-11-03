@@ -5,6 +5,13 @@ from ..squad_talk import TALK_GATES
 from . import MassEffectLE1TestBase
 
 
+def takes_own_progression(test: MassEffectLE1TestBase, name: str) -> bool:
+    """Not filler-only, and its item rule accepts this world's progression (a Beacon Fragment)."""
+    location = test.multiworld.get_location(name, test.player)
+    return (location.progress_type != LocationProgressType.EXCLUDED
+            and location.item_rule(test.world.create_item(FRAGMENT)))
+
+
 class TestDefaults(MassEffectLE1TestBase):
     def test_citadel_is_open_from_start(self) -> None:
         self.assertTrue(self.can_reach_region(Region.CITADEL.value))
@@ -102,11 +109,40 @@ class TestUnchartedGates(MassEffectLE1TestBase):
         location = self.multiworld.get_location("Presrop: Aid Station 1", self.player)
         self.assertEqual(location.progress_type, LocationProgressType.EXCLUDED)
 
-    def test_finished_missions_hold_filler_by_default(self) -> None:
-        for name in ("Therum: Ammo Pack 1", "Codex: Aliens: Council Races: Salarians: Culture"):
-            self.assertEqual(self.multiworld.get_location(name, self.player).progress_type, LocationProgressType.EXCLUDED, name)
-        for name in ("Therum: Rescue Liara", "Virmire: The Survivor"):  # story checks on the way to the end stay normal
-            self.assertEqual(self.multiworld.get_location(name, self.player).progress_type, LocationProgressType.DEFAULT, name)
+    def test_finished_missions_hold_no_progression_by_default(self) -> None:
+        for name in ("Therum: Ammo Pack 1", "Codex: Aliens: Council Races: Salarians: Culture", "Eden Prime: Ammo Pack 1",
+                     "Codex: Aliens: Non-Council Races: Geth", "Asteroid X57: Grenade Storage Box 13"):
+            self.assertFalse(takes_own_progression(self, name), name)
+        for name in ("Therum: Rescue Liara", "Virmire: The Survivor", "Eden Prime: Beacon Vision",
+                     "Codex: Aliens: Non-Sapient Creatures: Husks", "Asteroid X57: Bring Down the Sky"):  # on the way, or also found elsewhere: normal
+            self.assertTrue(takes_own_progression(self, name), name)
+
+    def test_finished_missions_take_gear_but_not_others_useful_items(self) -> None:
+        location = self.multiworld.get_location("Therum: Ammo Pack 1", self.player)
+        self.assertEqual(location.progress_type, LocationProgressType.DEFAULT)
+        self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))))
+        self.assertTrue(location.item_rule(self.world.create_item(FILLER[0])))
+        other = self.player + 1
+        self.assertFalse(location.item_rule(Item("Other Key", ItemClassification.progression, None, other)))
+        self.assertFalse(location.item_rule(Item("Other Sword", ItemClassification.useful, None, other)))
+        self.assertTrue(location.item_rule(Item("Other Rupee", ItemClassification.filler, None, other)))
+
+    def test_feros_and_noveria_close_in_part(self) -> None:
+        for name, closed in (("Feros: Ammo Pack 1", True),  # BIOA_WAR20_03C: not streamed after the Thorian
+                               ("Feros: Ammo Pack 2", False),  # Zhu's Hope
+                               ("Feros: Locked Secure Crate 1", True),  # ExoGeni (WAR50)
+                               ("Noveria: Ammo Pack 3", True),  # the road to Peak 15 (ICE25)
+                               ("Noveria: Aid Station 1", True),  # Peak 15 (ICE60)
+                               ("Noveria: Ammo Pack 1", False),  # Port Hanshan
+                               ("Feros: Zhu's Hope Merchant Slot 1", False)):
+            self.assertEqual(takes_own_progression(self, name), not closed, name)
+
+    def test_joker_prologue_pages_hold_no_progression(self) -> None:
+        for name in ("Codex: Humanity and the Systems Alliance: Systems Alliance",
+                     "Codex: Humanity and the Systems Alliance: Timeline"):
+            location = self.multiworld.get_location(name, self.player)
+            self.assertFalse(takes_own_progression(self, name), name)
+            self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))), name)
 
     def test_genophage_needs_wrex(self) -> None:
         name = "Virmire: Wrex and the Genophage: Started"
@@ -121,8 +157,17 @@ class TestFinishedMissionsAnyItem(MassEffectLE1TestBase):
     options = {"finished_mission_checks": "any_item"}
 
     def test_finished_mission_checks_are_normal(self) -> None:
-        location = self.multiworld.get_location("Therum: Ammo Pack 1", self.player)
-        self.assertEqual(location.progress_type, LocationProgressType.DEFAULT)
+        for name in ("Therum: Ammo Pack 1", "Feros: Ammo Pack 1", "Noveria: Aid Station 1"):
+            self.assertTrue(takes_own_progression(self, name), name)
+
+
+class TestFinishedMissionsFillerOnly(MassEffectLE1TestBase):
+    options = {"finished_mission_checks": "filler_only"}
+
+    def test_finished_mission_checks_hold_filler_only(self) -> None:
+        for name in ("Therum: Ammo Pack 1", "Feros: Ammo Pack 1", "Noveria: Aid Station 1", "Virmire: Salarian Camp Slot 1"):
+            self.assertEqual(self.multiworld.get_location(name, self.player).progress_type, LocationProgressType.EXCLUDED, name)
+        self.assertTrue(takes_own_progression(self, "Noveria: Ammo Pack 1"))
 
 
 class TestMakoShuffled(MassEffectLE1TestBase):
@@ -292,7 +337,9 @@ class TestJournalsanity(MassEffectLE1TestBase):
         journal = [loc for loc in self.multiworld.get_locations(self.player) if LOCATIONS.get(loc.name) and LOCATIONS[loc.name].journal]
         self.assertEqual(len(journal), 130)
         for loc in journal:
-            self.assertEqual(loc.progress_type == LocationProgressType.EXCLUDED, loc.name.endswith(": Completed"))
+            choice = loc.name in TALK_GATES and TALK_GATES[loc.name].choice  # e.g. Wrex: Family Armor (Wrex can die)
+            self.assertEqual(loc.progress_type == LocationProgressType.EXCLUDED, loc.name.endswith(": Completed") or choice,
+                             loc.name)
 
     def test_squad_quest_needs_its_squadmate(self) -> None:
         self.assertFalse(self.can_reach_location("Wrex: Family Armor: Started"))
@@ -333,8 +380,8 @@ class TestShops(MassEffectLE1TestBase):
         self.assertEqual(self.location("Normandy: Commander Rentola Slot 1").progress_type, LocationProgressType.EXCLUDED)
 
     def test_virmire_camp_follows_finished_mission_checks(self) -> None:
-        self.assertEqual(self.location("Virmire: Salarian Camp Slot 1").progress_type, LocationProgressType.EXCLUDED)
-        self.assertNotEqual(self.location("Noveria: Opold and Petozi Slot 1").progress_type, LocationProgressType.EXCLUDED)
+        self.assertFalse(takes_own_progression(self, "Virmire: Salarian Camp Slot 1"))
+        self.assertTrue(takes_own_progression(self, "Noveria: Opold and Petozi Slot 1"))
 
 
 class TestNoShops(MassEffectLE1TestBase):
@@ -433,11 +480,27 @@ class TestSquadTalk(MassEffectLE1TestBase):
         self.collect_event(EVENT_THERUM)
         self.assertTrue(self.can_reach_location(page))
 
-    def test_choice_pages_hold_filler_only(self) -> None:
+    def test_virmire_survivor_pages(self) -> None:
+        """Pages only Kaidan, Ashley or Wrex give are lost if they die on Virmire; pages with another source are not."""
+        for name, missable in (("Codex: Technology: Biotics: Training", True),
+                               ("Codex: Ships and Vehicles: Space Combat: Planetary Assaults", True),
+                               ("Codex: Aliens: Non-Council Races: Krogan: Culture", True),
+                               ("Codex: Technology: Mass Effect Fields", False),
+                               ("Codex: Humanity and the Systems Alliance: Human Diplomatic Relations", False),
+                               ("Codex: Weapons, Armor and Equipment: Body Armor", False),
+                               ("Codex: Aliens: Non-Council Races: Krogan: Genophage", False)):
+            self.assertEqual(takes_own_progression(self, name), not missable, name)
+
+    def test_choice_checks_hold_no_progression(self) -> None:
+        """Codex pages get the no-progression rule (this world's gear allowed); quests hold filler only."""
         for name, gate in TALK_GATES.items():
             if gate.choice:
-                self.assertEqual(self.multiworld.get_location(name, self.player).progress_type,
-                                 LocationProgressType.EXCLUDED, name)
+                location = self.multiworld.get_location(name, self.player)
+                self.assertFalse(takes_own_progression(self, name), name)
+                page = LOCATIONS[name].codex is not None
+                self.assertEqual(location.progress_type == LocationProgressType.EXCLUDED, not page, name)
+                if page:
+                    self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))), name)
 
 
 class TestSquadTalkMakoShuffled(MassEffectLE1TestBase):
