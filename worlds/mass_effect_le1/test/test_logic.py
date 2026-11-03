@@ -299,7 +299,9 @@ class TestJournalsanity(MassEffectLE1TestBase):
         journal = [loc for loc in self.multiworld.get_locations(self.player) if LOCATIONS.get(loc.name) and LOCATIONS[loc.name].journal]
         self.assertEqual(len(journal), 130)
         for loc in journal:
-            self.assertEqual(loc.progress_type == LocationProgressType.EXCLUDED, loc.name.endswith(": Completed"))
+            choice = loc.name in TALK_GATES and TALK_GATES[loc.name].choice  # e.g. Wrex: Family Armor (Wrex can die)
+            self.assertEqual(loc.progress_type == LocationProgressType.EXCLUDED, loc.name.endswith(": Completed") or choice,
+                             loc.name)
 
     def test_squad_quest_needs_its_squadmate(self) -> None:
         self.assertFalse(self.can_reach_location("Wrex: Family Armor: Started"))
@@ -439,6 +441,18 @@ class TestSquadTalk(MassEffectLE1TestBase):
         self.assertTrue(self.can_reach_region(Region.THERUM.value))
         self.collect_event(EVENT_THERUM)
         self.assertTrue(self.can_reach_location(page))
+
+    def test_virmire_survivor_pages(self) -> None:
+        """Pages only Kaidan, Ashley or Wrex give are lost if they die on Virmire; pages with another source are not."""
+        for name, excluded in (("Codex: Technology: Biotics: Training", True),
+                               ("Codex: Ships and Vehicles: Space Combat: Planetary Assaults", True),
+                               ("Codex: Aliens: Non-Council Races: Krogan: Culture", True),
+                               ("Codex: Technology: Mass Effect Fields", False),
+                               ("Codex: Humanity and the Systems Alliance: Human Diplomatic Relations", False),
+                               ("Codex: Weapons, Armor and Equipment: Body Armor", False),
+                               ("Codex: Aliens: Non-Council Races: Krogan: Genophage", False)):
+            progress = self.multiworld.get_location(name, self.player).progress_type
+            self.assertEqual(progress == LocationProgressType.EXCLUDED, excluded, name)
 
     def test_choice_pages_hold_filler_only(self) -> None:
         for name, gate in TALK_GATES.items():
