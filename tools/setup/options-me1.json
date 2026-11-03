@@ -117,7 +117,7 @@
     {
      "key": "finished_mission_checks",
      "display": "Finished Mission Checks",
-     "doc": "Eden Prime, Therum, Virmire and Asteroid X57 close for good once their mission is finished, so checks left behind\nthere are lost.\n\nfiller_only: their containers and mission-only codex pages hold filler only, so nothing important can be lost.\nany_item: they can hold anything; collect everything there before finishing those missions.",
+     "doc": "Eden Prime, Therum, Virmire and Asteroid X57 close for good once their mission is finished, so checks left behind\nthere are lost. Feros and Noveria close in part: afterwards only Zhu's Hope and Port Hanshan can be revisited.\n\nfiller_only: their containers and mission-only codex pages hold filler only, so nothing important can be lost.\nany_item: they can hold anything; collect everything there before finishing those missions.",
      "type": "choice",
      "default": "filler_only",
      "choices": [

@@ -110,6 +110,17 @@ class TestUnchartedGates(MassEffectLE1TestBase):
                      "Codex: Aliens: Non-Sapient Creatures: Husks", "Asteroid X57: Bring Down the Sky"):  # on the way, or also found elsewhere: normal
             self.assertEqual(self.multiworld.get_location(name, self.player).progress_type, LocationProgressType.DEFAULT, name)
 
+    def test_feros_and_noveria_close_in_part(self) -> None:
+        for name, excluded in (("Feros: Ammo Pack 1", True),  # BIOA_WAR20_03C: not streamed after the Thorian
+                               ("Feros: Ammo Pack 2", False),  # Zhu's Hope
+                               ("Feros: Locked Secure Crate 1", True),  # ExoGeni (WAR50)
+                               ("Noveria: Ammo Pack 3", True),  # the road to Peak 15 (ICE25)
+                               ("Noveria: Aid Station 1", True),  # Peak 15 (ICE60)
+                               ("Noveria: Ammo Pack 1", False),  # Port Hanshan
+                               ("Feros: Zhu's Hope Merchant Slot 1", False)):
+            progress = self.multiworld.get_location(name, self.player).progress_type
+            self.assertEqual(progress == LocationProgressType.EXCLUDED, excluded, name)
+
     def test_joker_prologue_pages_hold_filler_only(self) -> None:
         for name in ("Codex: Humanity and the Systems Alliance: Systems Alliance",
                      "Codex: Humanity and the Systems Alliance: Timeline"):
@@ -128,8 +139,8 @@ class TestFinishedMissionsAnyItem(MassEffectLE1TestBase):
     options = {"finished_mission_checks": "any_item"}
 
     def test_finished_mission_checks_are_normal(self) -> None:
-        location = self.multiworld.get_location("Therum: Ammo Pack 1", self.player)
-        self.assertEqual(location.progress_type, LocationProgressType.DEFAULT)
+        for name in ("Therum: Ammo Pack 1", "Feros: Ammo Pack 1", "Noveria: Aid Station 1"):
+            self.assertEqual(self.multiworld.get_location(name, self.player).progress_type, LocationProgressType.DEFAULT, name)
 
 
 class TestMakoShuffled(MassEffectLE1TestBase):

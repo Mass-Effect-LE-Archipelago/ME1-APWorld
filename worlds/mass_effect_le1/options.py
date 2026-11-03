@@ -128,7 +128,7 @@ class UpgradeCount(Range):
 
 class FinishedMissionChecks(Choice):
     """Eden Prime, Therum, Virmire and Asteroid X57 close for good once their mission is finished, so checks left behind
-    there are lost.
+    there are lost. Feros and Noveria close in part: afterwards only Zhu's Hope and Port Hanshan can be revisited.
 
     filler_only: their containers and mission-only codex pages hold filler only, so nothing important can be lost.
     any_item: they can hold anything; collect everything there before finishing those missions."""

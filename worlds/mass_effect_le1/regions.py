@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from BaseClasses import Item, ItemClassification, Location, LocationProgressType, Region
@@ -9,6 +10,7 @@ from rule_builder.field_resolvers import FromOption, FromWorldAttr
 from worlds.generic.Rules import add_item_rule
 
 from . import data, squad_talk, uncharted
+from .containers import CONTAINERS
 from .data import Region as R
 from .items import MassEffectLE1Item
 from .options import MakoShuffled, RequiredSquadSize
@@ -81,8 +83,43 @@ MISSION_ONLY_CODEX = frozenset({
     "Codex: Aliens: Council Races: Salarians: Military Doctrine",
 })
 
-# Joker's prologue conversation (nor10_joker_dlg) plays only while int 13 is 10101 and bool 3214 is unset, which the open
-# start leaves in place until Udina's office on the first Citadel visit sets 3214.
+# Feros and Noveria can be revisited once finished, but only partly. After the Thorian, Feros streams only Zhu's Hope
+# (BIOA_WAR00's PostThorian state, these chunks); after Benezia, the road to Peak 15 and Peak 15 itself are closed.
+FEROS_OPEN_CHUNKS = frozenset({
+    "BIOA_WAR20_00", "BIOA_WAR20_01", "BIOA_WAR20_02", "BIOA_WAR20_03", "BIOA_WAR20_03A", "BIOA_WAR20_03B",
+    "BIOA_WAR20_03E", "BIOA_WAR20_04", "BIOA_WAR20_04C", "BIOA_WAR20_05", "BIOA_WAR20_06", "BIOA_WAR20_07",
+    "BIOA_WAR20_08", "BIOA_WAR20_09", "BIOA_WAR20_10", "BIOA_WAR20_10A", "BIOA_WAR20_14",
+})
+NOVERIA_CLOSED_CHUNK = re.compile(r"BIOA_ICE(25|50|60)_")
+_PACKAGE_SUFFIX = re.compile(r"_(DSG|DS\d|PLC|ART|LAY|SND)$")
+
+
+def _container_chunks() -> dict[str, str]:
+    """Container, drop-slot and Aid Station location name -> its level chunk (package name without its suffix)."""
+    chunks = {}
+    for entry in CONTAINERS:
+        chunk = _PACKAGE_SUFFIX.sub("", entry.key.split(".", 1)[0].upper())
+        chunks[entry.name] = chunk
+        for roll in range(2, entry.drops + 1):
+            chunks[f"{entry.name} (Item {roll})"] = chunk
+    return chunks
+
+
+CONTAINER_CHUNKS = _container_chunks()
+
+
+def closed_after_mission(name: str, loc: data.LocationData) -> bool:
+    """A Feros or Noveria container in a part of the planet that is closed once its mission is finished."""
+    chunk = CONTAINER_CHUNKS.get(name)
+    if chunk is None:
+        return False
+    if loc.region is R.FEROS:
+        return chunk not in FEROS_OPEN_CHUNKS
+    return loc.region is R.NOVERIA and NOVERIA_CLOSED_CHUNK.match(chunk) is not None
+
+
+# Joker's prologue conversation (nor10_joker_dlg) plays only while int 13 is 10101 and bool 3214 is unset, which the
+# open start leaves in place until Udina's office on the first Citadel visit sets 3214.
 MISSABLE_CODEX = frozenset({
     "Codex: Humanity and the Systems Alliance: Systems Alliance",
     "Codex: Humanity and the Systems Alliance: Timeline",
@@ -96,9 +133,11 @@ def location_excluded(world: MassEffectLE1World, name: str, loc: data.LocationDa
         return True
     if (gate := squad_talk.TALK_GATES.get(name)) is not None and gate.choice:
         return True
-    return (world.options.finished_mission_checks == world.options.finished_mission_checks.option_filler_only
-            and loc.region in CLOSING_MISSIONS
-            and (loc.container is not None or loc.shop_slot is not None or name in MISSION_ONLY_CODEX))
+    if world.options.finished_mission_checks != world.options.finished_mission_checks.option_filler_only:
+        return False
+    if loc.region in CLOSING_MISSIONS:
+        return loc.container is not None or loc.shop_slot is not None or name in MISSION_ONLY_CODEX
+    return closed_after_mission(name, loc)
 
 
 def no_return_item_allowed(world: MassEffectLE1World, item: Item) -> bool:

@@ -55,7 +55,8 @@ Kaidan, Ashley and Wrex can die on Virmire, so codex pages and quests only they 
 Aid Stations cannot be used at full medi-gel: use a medi-gel first to send the check.
 
 Eden Prime, Therum, Virmire and Asteroid X57 close for good once finished, so their containers hold filler by default
-(finished_mission_checks).
+(finished_mission_checks). Feros and Noveria close in part: afterwards only Zhu's Hope and Port Hanshan can be
+revisited, so containers elsewhere on those planets hold filler too.
 Landing on Ilos starts the finale with no way back, so Ilos never holds this game's progression items (squadmates,
 coordinates, the Mako, fragments). It can still hold other games' items, and this game's gear unless ilos_useful_items
 is off.
