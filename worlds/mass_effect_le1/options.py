@@ -130,13 +130,16 @@ class FinishedMissionChecks(Choice):
     """Eden Prime, Therum, Virmire and Asteroid X57 close for good once their mission is finished, so checks left behind
     there are lost. Feros and Noveria close in part: afterwards only Zhu's Hope and Port Hanshan can be revisited.
 
-    filler_only: their containers and mission-only codex pages hold filler only, so nothing important can be lost.
+    no_progression: their containers and mission-only codex pages hold no progression items: this game's gear, upgrades
+    and filler, and other games' filler. Leaving one behind can cost gear, never progress.
+    filler_only: they hold filler only, so nothing useful can be lost.
     any_item: they can hold anything; collect everything there before finishing those missions."""
 
     display_name = "Finished Mission Checks"
     option_filler_only = 0
     option_any_item = 1
-    default = 0
+    option_no_progression = 2
+    default = 2
 
 
 class IlosUsefulItems(DefaultOnToggle):
