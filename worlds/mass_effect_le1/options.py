@@ -127,10 +127,11 @@ class UpgradeCount(Range):
 
 
 class FinishedMissionChecks(Choice):
-    """Therum and Virmire close for good once their mission is finished, so checks left behind there are lost.
+    """Eden Prime, Therum and Virmire close for good once their mission is finished, so checks left behind there are
+    lost.
 
     filler_only: their containers and mission-only codex pages hold filler only, so nothing important can be lost.
-    any_item: they can hold anything; collect everything on Therum and Virmire before finishing those missions."""
+    any_item: they can hold anything; collect everything on Eden Prime, Therum and Virmire before finishing them."""
 
     display_name = "Finished Mission Checks"
     option_filler_only = 0

@@ -103,9 +103,11 @@ class TestUnchartedGates(MassEffectLE1TestBase):
         self.assertEqual(location.progress_type, LocationProgressType.EXCLUDED)
 
     def test_finished_missions_hold_filler_by_default(self) -> None:
-        for name in ("Therum: Ammo Pack 1", "Codex: Aliens: Council Races: Salarians: Culture"):
+        for name in ("Therum: Ammo Pack 1", "Codex: Aliens: Council Races: Salarians: Culture", "Eden Prime: Ammo Pack 1",
+                     "Codex: Aliens: Non-Council Races: Geth"):
             self.assertEqual(self.multiworld.get_location(name, self.player).progress_type, LocationProgressType.EXCLUDED, name)
-        for name in ("Therum: Rescue Liara", "Virmire: The Survivor"):  # story checks on the way to the end stay normal
+        for name in ("Therum: Rescue Liara", "Virmire: The Survivor", "Eden Prime: Beacon Vision",
+                     "Codex: Aliens: Non-Sapient Creatures: Husks"):  # on the way, or also found elsewhere: normal
             self.assertEqual(self.multiworld.get_location(name, self.player).progress_type, LocationProgressType.DEFAULT, name)
 
     def test_genophage_needs_wrex(self) -> None:
