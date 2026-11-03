@@ -23,10 +23,11 @@ game's own `oo2core_8_win64.dll` to read and write them.
 |---|---|
 | `BIOC_Materials.pcc` (vanilla, shipped as an override) | `PlotManagerAuto.StateTransitionMap`: every element that sets an in-party bool (3939-3944) sets 20199 instead |
 | `PlotManagerAutoAPME1.pcc` (mod) | `StateTransitionMap`: the same for 20101 and 20102 (Recruit Garrus, Recruit Wrex) |
+| `BIOG_2DA_APME1_Treasure_X.pcc` (mod) | `Treasure_Tables_TreasureTables_part_1`: each merchant table that holds Archipelago Item entries draws all its entries (vanilla `drops` left out every entry beyond the vanilla stock, so shop slots could be missing) |
 
-Squadmates then join only through Archipelago items (the client sets the in-party bool on delivery, and adds Kaidan
-and Ashley itself with Kaidan and Ashley Join at the Citadel). The in-squad bools (3817-3822) are left alone, so
-scripted scenes still bring their squadmate along for that scene.
+The first two make squadmates join only through Archipelago items (the client sets the in-party bool on delivery, and
+adds Kaidan and Ashley itself with Kaidan and Ashley Join at the Citadel). The in-squad bools (3817-3822) are left alone,
+so scripted scenes still bring their squadmate along for that scene.
 
 ## Tests
 
