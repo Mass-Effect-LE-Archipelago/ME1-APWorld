@@ -18,7 +18,8 @@ REPO = HERE.parents[1]
 
 
 def me1_payload(release: pathlib.Path, dest: pathlib.Path) -> None:
-    """ME1\\: apworld, ASI\\ (bridge + checks table), ArchipelagoME1\\ (moddesc.ini, DLC_MOD_ArchipelagoME1, BASEGAME)."""
+    """ME1\\: apworld, ASI\\ (bridge + checks table), ArchipelagoME1\\ (moddesc.ini, DLC_MOD_ArchipelagoME1, BASEGAME),
+    options.json (the world's option schema)."""
     version = release.name.split("-", 1)[1]
     dest.mkdir(parents=True)
     shutil.copy(release / "mass_effect_le1.apworld", dest / "mass_effect_le1.apworld")
@@ -28,6 +29,8 @@ def me1_payload(release: pathlib.Path, dest: pathlib.Path) -> None:
             (dest / "ASI" / name).write_bytes(z.read(f"ArchipelagoME1-bridge-{version}/ASI/{name}"))
     with zipfile.ZipFile(release / f"ArchipelagoME1-mod-{version}.zip") as z:
         z.extractall(dest)
+    if (release / "options-me1.json").exists():  # the Options page reads it in place of the built-in schema
+        shutil.copy(release / "options-me1.json", dest / "options.json")
 
 
 def me2_payload(release: pathlib.Path, loader: pathlib.Path, dest: pathlib.Path) -> None:
