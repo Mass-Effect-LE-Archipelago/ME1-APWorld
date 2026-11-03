@@ -47,7 +47,9 @@ Reach Ilos, follow Saren through the Conduit, and defeat Saren and Sovereign on 
   and whether it is progression; otherwise it shows as "Archipelago Item".
 
 Uncharted worlds, derelict freighters and side-assignment transmissions count as available after the Citadel's first
-act, with the Mako. Aid Stations cannot be used at full medi-gel: use a medi-gel first to send the check.
+act, with the Mako. Squadmates have new things to say on the Normandy after a finished mission or every third
+uncharted-world landing, so codex pages and quests from their later conversations count as available once you can land
+on uncharted worlds. Kaidan's and Ashley's conversations also wait for Therum, Feros or Noveria to be finished. Aid Stations cannot be used at full medi-gel: use a medi-gel first to send the check.
 
 Therum and Virmire close for good once finished, so their containers hold filler by default (finished_mission_checks).
 Landing on Ilos starts the finale with no way back, so Ilos never holds this game's progression items (squadmates,

@@ -8,7 +8,7 @@ from rule_builder.rules import Has, HasAll, HasFromList, Rule, True_
 from rule_builder.field_resolvers import FromOption, FromWorldAttr
 from worlds.generic.Rules import add_item_rule
 
-from . import data, uncharted
+from . import data, squad_talk, uncharted
 from .data import Region as R
 from .items import MassEffectLE1Item
 from .options import MakoShuffled, RequiredSquadSize
@@ -83,6 +83,8 @@ def location_excluded(world: MassEffectLE1World, name: str, loc: data.LocationDa
     for good when its mission ends (finished_mission_checks: filler_only)."""
     if loc.excluded or uncharted.location_unverified(name):
         return True
+    if (gate := squad_talk.TALK_GATES.get(name)) is not None and gate.choice:
+        return True
     return (world.options.finished_mission_checks == world.options.finished_mission_checks.option_filler_only
             and loc.region in CLOSING_MISSIONS
             and (loc.container is not None or loc.shop_slot is not None or name in MISSION_ONLY_CODEX))
@@ -125,6 +127,7 @@ def create_regions(world: MassEffectLE1World) -> None:
         # Same names as the items, so HAS_SQUAD and VIRMIRE_PAIR count them; no ID, so the client never sets InParty.
         for name in data.HUMAN_SQUAD:
             _add_event(world, regions[R.CITADEL], name, f"Citadel: {name} Joins (arrival)")
+    _add_event(world, regions[R.THERUM], data.EVENT_THERUM)
     _add_event(world, regions[R.FEROS], data.EVENT_FEROS)
     _add_event(world, regions[R.NOVERIA], data.EVENT_NOVERIA)
     _add_event(world, regions[R.VIRMIRE], data.EVENT_VIRMIRE)

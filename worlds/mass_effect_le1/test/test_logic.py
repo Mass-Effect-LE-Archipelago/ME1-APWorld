@@ -1,6 +1,7 @@
-from ..data import COORDINATES, EVENT_ACT1, EVENT_FEROS, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, NO_RETURN_REGIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
+from ..data import COORDINATES, EVENT_ACT1, EVENT_FEROS, EVENT_THERUM, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, MAKO, NO_RETURN_REGIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
 from BaseClasses import Item, ItemClassification, LocationProgressType
 from ..options import options_presets
+from ..squad_talk import TALK_GATES
 from . import MassEffectLE1TestBase
 
 
@@ -229,9 +230,9 @@ class TestCodexsanity(MassEffectLE1TestBase):
     def test_full_codex_is_in_and_squad_pages_need_the_squadmate(self) -> None:
         codex = [loc for loc in self.multiworld.get_locations(self.player) if loc.name.startswith("Codex: ")]
         self.assertEqual(len(codex), 119)
-        page = next(name for name, loc in LOCATIONS.items() if loc.squad == "Garrus Vakarian")
+        page = next(name for name, loc in LOCATIONS.items() if loc.squad == "Liara T'Soni" and name not in TALK_GATES)
         self.assertFalse(self.can_reach_location(page))
-        self.collect_by_name(["Garrus Vakarian"])
+        self.collect_by_name(["Liara T'Soni"])
         self.assertTrue(self.can_reach_location(page))
 
     def test_uncharted_waits_for_act1(self) -> None:
@@ -296,6 +297,8 @@ class TestJournalsanity(MassEffectLE1TestBase):
     def test_squad_quest_needs_its_squadmate(self) -> None:
         self.assertFalse(self.can_reach_location("Wrex: Family Armor: Started"))
         self.collect_by_name(["Urdnot Wrex"])
+        self.assertFalse(self.can_reach_location("Wrex: Family Armor: Started"))  # a later talk: uncharted landings
+        self.collect(self.multiworld.get_location(EVENT_ACT1, self.player).item)
         self.assertTrue(self.can_reach_location("Wrex: Family Armor: Started"))
 
 
@@ -406,3 +409,53 @@ class TestIlosNoGear(TestIlosNoReturn):
         useful = sum(1 for item in self.multiworld.itempool if item.player == self.player and item.useful)
         self.assertLessEqual(useful, len(unfilled) - reserved - sum(
             1 for item in self.multiworld.itempool if item.player == self.player and item.advancement))
+
+
+class TestSquadTalk(MassEffectLE1TestBase):
+    """Squadmate conversation checks (squad_talk.TALK_GATES) on top of the squadmate item."""
+
+    def collect_event(self, name: str) -> None:
+        self.collect(self.multiworld.get_location(name, self.player).item)
+
+    def test_gates_name_squad_locations(self) -> None:
+        for name in TALK_GATES:
+            self.assertIn(name, LOCATIONS)
+            self.assertIsNotNone(LOCATIONS[name].squad, name)
+
+    def test_first_talk_needs_only_the_squadmate(self) -> None:
+        self.collect_by_name(["Liara T'Soni"])
+        self.assertTrue(self.can_reach_location("Codex: Aliens: Extinct Races: Protheans: Beacon"))
+
+    def test_later_talk_needs_uncharted_landings(self) -> None:
+        page = "Codex: Aliens: Council Races: Turians: Biology"
+        self.collect_by_name(["Garrus Vakarian"])
+        self.assertFalse(self.can_reach_location(page))
+        self.collect_event(EVENT_ACT1)
+        self.assertTrue(self.can_reach_location(page))
+
+    def test_finished_missions_are_counted(self) -> None:
+        page = "Codex: Technology: Biotics: Training"
+        self.collect_by_name(["Kaidan Alenko"])
+        self.assertFalse(self.can_reach_location(page))
+        self.collect_by_name([COORDINATES[Region.THERUM], "Garrus Vakarian", "Urdnot Wrex"])
+        self.assertTrue(self.can_reach_region(Region.THERUM.value))
+        self.collect_event(EVENT_THERUM)
+        self.assertTrue(self.can_reach_location(page))
+
+    def test_choice_pages_hold_filler_only(self) -> None:
+        for name, gate in TALK_GATES.items():
+            if gate.choice:
+                self.assertEqual(self.multiworld.get_location(name, self.player).progress_type,
+                                 LocationProgressType.EXCLUDED, name)
+
+
+class TestSquadTalkMakoShuffled(MassEffectLE1TestBase):
+    options = {"mako_shuffled": True}
+
+    def test_later_talk_needs_the_mako(self) -> None:
+        page = "Codex: Aliens: Council Races: Turians: Biology"
+        self.collect_by_name(["Garrus Vakarian"])
+        self.collect(self.multiworld.get_location(EVENT_ACT1, self.player).item)
+        self.assertFalse(self.can_reach_location(page))
+        self.collect_by_name([MAKO])
+        self.assertTrue(self.can_reach_location(page))

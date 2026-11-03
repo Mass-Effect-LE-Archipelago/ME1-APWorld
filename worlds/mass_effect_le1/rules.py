@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from rule_builder.rules import Has
+from rule_builder.rules import Has, HasFromList
 
-from . import data, uncharted
-from .regions import location_included
+from . import data, squad_talk, uncharted
+from .regions import HAS_MAKO, location_included
 
 if TYPE_CHECKING:
     from .world import MassEffectLE1World
@@ -15,6 +15,8 @@ HAS_ACT1 = Has(data.EVENT_ACT1)
 NEEDS_SQUADMATE = {
     "Virmire: Wrex and the Genophage: Started": "Urdnot Wrex",  # bools 3015/3021/5472: Kirrahe's camp, Wrex's standoff
 }
+UNCHARTED_LANDINGS = HAS_ACT1 & HAS_MAKO  # the Uncharted Worlds entrance (regions.ENTRANCES)
+MISSIONS_DONE = (data.EVENT_THERUM, data.EVENT_FEROS, data.EVENT_NOVERIA)  # what squad_talk.TalkGate.missions counts
 UNCHARTED_GATES = {  # landing conditions of gated uncharted planets (uncharted.py)
     uncharted.FEROS: Has(data.EVENT_FEROS),
     uncharted.NOVERIA: Has(data.EVENT_NOVERIA),
@@ -38,6 +40,12 @@ def set_rules(world: MassEffectLE1World) -> None:
             rule = Has(needed) if rule is None else rule & Has(needed)
         if (gate := uncharted.location_gate(name)) is not None:
             rule = UNCHARTED_GATES[gate] if rule is None else rule & UNCHARTED_GATES[gate]
+        if (talk := squad_talk.TALK_GATES.get(name)) is not None:
+            if talk.uncharted:
+                rule = UNCHARTED_LANDINGS if rule is None else rule & UNCHARTED_LANDINGS
+            if talk.missions:
+                done = HasFromList(*MISSIONS_DONE, count=talk.missions)
+                rule = done if rule is None else rule & done
         if rule is not None:
             world.set_rule(world.get_location(name), rule)
     world.set_completion_rule(Has(data.EVENT_VICTORY))

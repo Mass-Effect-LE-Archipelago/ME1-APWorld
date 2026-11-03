@@ -131,7 +131,7 @@ class Tracker:
             name = self.world.item_id_to_name.get(item_id)
             if name is not None:
                 state.collect(self.world.create_item(name), prevent_sweep=True)
-        state.sweep_for_advancements()  # events (Act 1, Feros/Noveria/Virmire Complete, the human squad option)
+        state.sweep_for_advancements()  # events (Act 1, Therum/Feros/Noveria/Virmire Complete, the human squad option)
         return state
 
     def status(self, received_item_ids: Iterable[int], missing_location_ids: Iterable[int]) -> TrackerStatus:

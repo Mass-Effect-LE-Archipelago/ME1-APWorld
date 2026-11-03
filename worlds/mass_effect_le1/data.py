@@ -223,6 +223,7 @@ LOCATION_NAME_GROUPS["Shops"] = {name for name, data in LOCATIONS.items() if dat
 
 # Event locations: not in the ID tables, they hold locked event items.
 EVENT_ACT1 = "Citadel Act 1 Complete"  # Spectre status itself is set at game start (D8)
+EVENT_THERUM = "Therum Complete"  # bool 2506 Caleston_Done: squadmate conversations count it (squad_talk.py)
 EVENT_FEROS = "Feros Complete"  # bool 2507 Feros_Done: opens Nodacrux, Chasca, MSV Cornucopia (uncharted.py)
 EVENT_NOVERIA = "Noveria Complete"  # bool 2508 Noveria_Done: opens Altahe, Nepmos (uncharted.py)
 EVENT_VIRMIRE = "Virmire Complete"  # Ilos requires it (D9); bool 2509 Virmire_Done (sent in game, SCOPE P2-5)
