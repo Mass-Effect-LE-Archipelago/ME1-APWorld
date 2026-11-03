@@ -51,7 +51,7 @@ Open an [issue](../../issues) and include:
 ## Repository layout
 
 - `worlds/mass_effect_le1/`: the Archipelago world (logic, items, locations, options) and the client.
-- `mod/`: the game mod (`DLC_MOD_ArchipelagoME1`).
+- `mod/`: the game mod (`DLC_MOD_ArchipelagoME1`); `tools/le1mod/` applies this repo's patches to it.
 - `tools/le1apbridge/`: the bridge (`LE1APBridge.asi`, built) and its checks table.
 - `tools/release/`: the release packaging script and the bridge installer.
 - `tools/setup/`: the source of Mass Effect AP Setup, the setup app.
@@ -69,6 +69,7 @@ Set up Archipelago's environment once (Python 3.11 or newer): `python -m venv ve
 `vendor/Archipelago/requirements.txt` and `pytest` into it.
 
 - Tests: `python tools/test_world.py`.
+- Game mod patches: `python tools/le1mod/build_mod.py <LE1 game folder>` (see `tools/le1mod/README.md`).
 
 ## AI Disclosure
 AI was used to aid in the research and development of this multiworld.

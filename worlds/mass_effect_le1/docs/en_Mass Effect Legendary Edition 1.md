@@ -6,8 +6,9 @@ tracker (journal, galaxy-map markers) are new in 0.2 and not yet confirmed in ga
 ## What does randomization do to this game?
 
 Shepard starts as a Spectre aboard the Normandy with no squad. Galaxy-map destinations (Eden Prime, Therum, Feros,
-Noveria, Virmire, Asteroid X57) stay locked until their coordinates are found. Squadmates are items (Kaidan and Ashley
-can instead join at the Citadel as in the original game). Ilos opens once Virmire is done and enough Prothean Beacon
+Noveria, Virmire, Asteroid X57) stay locked until their coordinates are found. Squadmates are items: recruiting one in the
+story sends a check, and they join your squad when their item arrives (Kaidan and Ashley can instead join at the
+Citadel as in the original game). Ilos opens once Virmire is done and enough Prothean Beacon
 Fragments are collected. Weapons, armor, bio-amps, omni-tools and upgrades from every manufacturer arrive as items,
 and their level climbs from I to X over the seed. Credits, omni-gel, medi-gel and grenades are filler.
 

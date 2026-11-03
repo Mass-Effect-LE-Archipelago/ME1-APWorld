@@ -19,6 +19,7 @@ from ..client import (
     FRAGMENT_ITEM_ID,
     ILOS_OPEN_PLOT_BOOL,
     plot_bool_for_item,
+    sync_human_squad,
     sync_ilos_gate,
     evaluate_location_predicates,
     parse_plot_predicate,
@@ -431,6 +432,17 @@ class TestSquadAndIlos(unittest.TestCase):
                 bridge = FakeBridge(bools={2509: virmire})
                 self.assertEqual(sync_ilos_gate(bridge, items, required), opens)
                 self.assertEqual(bridge.bool_writes, [(ILOS_OPEN_PLOT_BOOL, True)] if opens else [])
+
+    def test_human_squad_joins_until_the_virmire_choice(self):
+        bridge = FakeBridge(bools={3939: False, 3940: True})
+        self.assertTrue(sync_human_squad(bridge))
+        self.assertEqual(bridge.bool_writes, [(3939, True)])
+        self.assertFalse(sync_human_squad(bridge))  # already in the party: nothing written
+        for survivor in (3827, 3828):
+            with self.subTest(survivor=survivor):
+                after = FakeBridge(bools={3939: False, 3940: False, survivor: True})
+                self.assertFalse(sync_human_squad(after))
+                self.assertEqual(after.bool_writes, [])
 
     def test_ilos_gate_does_not_rewrite_when_open(self):
         bridge = FakeBridge(bools={2509: True, ILOS_OPEN_PLOT_BOOL: True})
