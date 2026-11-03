@@ -17,6 +17,9 @@ gate on a plot bool instead of conditional 974 (TRUE). What sets each bool decid
 except Plutus (Nonuel, map 42) and Cacus (Chohe, map 30), which need conditional 1669: bool 4936 or 5070. The 75%
 Paragon or Renegade transmissions set them (sp125 and sp126; F1110/F1111: int 47 or 46 >= 275), so a player can miss
 both planets. Their checks hold no progression (regions.no_progression_rule).
+
+Some planets have a section that only works with two squadmates (playtest 2026-11-03): Agebinium (53). Their checks need
+any two squadmates (rules.TWO_SQUADMATES).
 """
 from __future__ import annotations
 
@@ -31,6 +34,7 @@ GARRUS = "garrus"
 MAP_GATES: dict[int, str] = {80: FEROS, 81: FEROS, 101: FEROS, 24: NOVERIA, 73: NOVERIA, 105: NOVERIA, 104: GARRUS}
 UNVERIFIED_MAPS = frozenset({54})
 MORALITY_MAPS = frozenset({30, 42})
+TWO_SQUADMATE_MAPS = frozenset({53})
 
 # Uncharted journal checks set only on a gated planet (sweep of every codex/journal setter in research/le1_*_uses.tsv;
 # Listening Post Alpha: Started also has a Normandy transmission source, kept on Noveria to be safe).
@@ -81,3 +85,8 @@ def location_unverified(name: str) -> bool:
 def location_needs_morality(name: str) -> bool:
     """On a planet only the 75% Paragon or Renegade transmission opens (MORALITY_MAPS)."""
     return _CONTAINER_MAP.get(name) in MORALITY_MAPS
+
+
+def location_needs_two_squadmates(name: str) -> bool:
+    """On a planet with a section that needs two squadmates (TWO_SQUADMATE_MAPS)."""
+    return _CONTAINER_MAP.get(name) in TWO_SQUADMATE_MAPS

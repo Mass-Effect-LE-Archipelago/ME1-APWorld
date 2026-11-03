@@ -15,6 +15,12 @@ HAS_ACT1 = Has(data.EVENT_ACT1)
 NEEDS_SQUADMATE = {
     "Virmire: Wrex and the Genophage: Started": "Urdnot Wrex",  # bools 3015/3021/5472: Kirrahe's camp, Wrex's standoff
 }
+# Quests that only work with two squadmates (playtest 2026-11-03); planets: uncharted.TWO_SQUADMATE_MAPS.
+TWO_SQUADMATES = HasFromList(*data.SQUAD, count=2)
+NEEDS_TWO_SQUADMATES = frozenset({
+    "Citadel: Jahleed's Fears: Started", "Citadel: Jahleed's Fears: Completed",
+    "Citadel: Rita's Sister", "Citadel: Rita's Sister: Started", "Citadel: Rita's Sister: Completed",
+})
 UNCHARTED_LANDINGS = HAS_ACT1 & HAS_MAKO  # the Uncharted Worlds entrance (regions.ENTRANCES)
 MISSIONS_DONE = (data.EVENT_THERUM, data.EVENT_FEROS, data.EVENT_NOVERIA)  # what squad_talk.TalkGate.missions counts
 UNCHARTED_GATES = {  # landing conditions of gated uncharted planets (uncharted.py)
@@ -38,6 +44,8 @@ def set_rules(world: MassEffectLE1World) -> None:
             rule = Has(loc.squad) if rule is None else rule & Has(loc.squad)
         if (needed := NEEDS_SQUADMATE.get(name)) is not None:
             rule = Has(needed) if rule is None else rule & Has(needed)
+        if name in NEEDS_TWO_SQUADMATES or uncharted.location_needs_two_squadmates(name):
+            rule = TWO_SQUADMATES if rule is None else rule & TWO_SQUADMATES
         if (gate := uncharted.location_gate(name)) is not None:
             rule = UNCHARTED_GATES[gate] if rule is None else rule & UNCHARTED_GATES[gate]
         if (talk := squad_talk.TALK_GATES.get(name)) is not None:

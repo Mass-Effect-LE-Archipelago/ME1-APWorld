@@ -323,6 +323,17 @@ class TestContainerDrops(MassEffectLE1TestBase):
         self.assertEqual(LOCATIONS["Chasca: Crate 1 (Item 3)"].ot_plot, LOCATIONS["Chasca: Crate 1"].ot_plot)
         self.assertFalse(any(LOCATIONS[n].container == "station" for n in names if n in LOCATIONS))
 
+    def test_agebinium_needs_two_squadmates(self) -> None:
+        names = ("Agebinium: Ammo Pack 1", "Agebinium: Crate 1", "Agebinium: Crate 1 (Item 3)")
+        self.collect(self.multiworld.get_location(EVENT_ACT1, self.player).item)
+        self.collect([self.world.create_item(MAKO), self.world.create_item("Garrus Vakarian")])
+        self.assertTrue(self.can_reach_location("Mavigon: Crate 1"))  # ungated planet: one squadmate is enough
+        for name in names:
+            self.assertFalse(self.can_reach_location(name), name)
+        self.collect(self.world.create_item("Liara T'Soni"))
+        for name in names:
+            self.assertTrue(self.can_reach_location(name), name)
+
 
 class TestUnlockContainers(MassEffectLE1TestBase):
     def test_locked_containers_and_stations_are_checks_by_default(self) -> None:
@@ -353,6 +364,17 @@ class TestJournalsanity(MassEffectLE1TestBase):
         self.assertFalse(self.can_reach_location("Wrex: Family Armor: Started"))
         self.collect_by_name(["Urdnot Wrex"])
         self.assertTrue(self.can_reach_location("Wrex: Family Armor: Started"))
+
+    def test_jahleed_and_rita_need_two_squadmates(self) -> None:
+        names = ("Citadel: Jahleed's Fears: Started", "Citadel: Jahleed's Fears: Completed", "Citadel: Rita's Sister",
+                 "Citadel: Rita's Sister: Started", "Citadel: Rita's Sister: Completed")
+        self.collect(self.multiworld.get_location(EVENT_ACT1, self.player).item)
+        self.collect_by_name("Garrus Vakarian")
+        for name in names:
+            self.assertFalse(self.can_reach_location(name), name)
+        self.collect_by_name("Liara T'Soni")
+        for name in names:
+            self.assertTrue(self.can_reach_location(name), name)
 
 
 class TestShops(MassEffectLE1TestBase):
