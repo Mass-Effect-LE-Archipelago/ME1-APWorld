@@ -74,5 +74,23 @@ Set up Archipelago's environment once (Python 3.11 or newer): `python -m venv ve
   bridge zip and `SHA256SUMS` to `build/release-<version>/`, after checking that the packaged apworld generates.
 - Setup app: `python tools/setup/package.py <app version>` (see `tools/setup/README.md`).
 
+## Credits
+
+- **Original project:** [ME1-APWorld](https://github.com/Mass-Effect-LE-Archipelago/ME1-APWorld) by Jerrod
+  (Unowa001): the world, the client, the game mod, the bridge and the setup app. This repository is a fork by Tyler
+  Kessler; the changes since 0.2.5 (squadmates only through items, squad conversation logic, Ilos item rules, building
+  the mod and releases from the repository) are in its history.
+- **Contributors:** poststructural.
+- [Archipelago](https://archipelago.gg): the multiworld framework (MIT).
+- [ME3Tweaks](https://me3tweaks.com): Legendary Explorer (LegendaryExplorerCore, GPL-3.0, which the setup app is built
+  with) and Mod Manager.
+- [Trilogy Save Editor](https://github.com/KarlitosVII/trilogy-save-editor) by KarlitosVII: its Mass Effect plot
+  database, used as a reference for plot flags.
+- [Nexus Mods mod 2422](https://www.nexusmods.com/masseffectlegendaryedition/mods/2422): the way the galaxy-map travel
+  videos are skipped.
+
+This is an unofficial fan project. It is not affiliated with or endorsed by BioWare or Electronic Arts. You need your own
+copy of Mass Effect Legendary Edition (PC).
+
 ## AI Disclosure
 AI was used to aid in the research and development of this multiworld.

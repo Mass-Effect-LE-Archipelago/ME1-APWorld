@@ -49,7 +49,7 @@ game = LE1
 modname = Archipelago for Mass Effect 1
 moddesc = Archipelago multiworld randomizer support for Mass Effect 1 (LE). Start a NEW career after installing. Also install the LE1APBridge ASI (install-bridge.ps1 in the bridge zip) and run the Mass Effect LE1 Client from the Archipelago Launcher. Setup guide: {setup_url}
 modver = {version}
-moddev = Jerrod
+moddev = Jerrod, Tyler Kessler
 requiresenhancedbink = true
 
 [CUSTOMDLC]
