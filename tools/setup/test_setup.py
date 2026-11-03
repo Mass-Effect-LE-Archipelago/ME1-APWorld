@@ -202,10 +202,12 @@ def main() -> int:
     defaults(parser)
     parser.add_argument("--rad-bink", default=pathlib.Path(r"C:\Steam\steamapps\common\Mass Effect Legendary Edition\Game\ME2\Binaries\Win64\bink2w64_original.dll"), type=pathlib.Path)
     args = parser.parse_args()
+    if args.me1_release is None:
+        parser.error("no build/release-<version> folder: run tools/release/build_release.py first, or pass --me1-release")
     failures = []
     with tempfile.TemporaryDirectory(prefix="apsetup-") as scratch:
         failures += me1(args.exe, args.me1_release, pathlib.Path(scratch) / "me1")
-        if all(p.exists() for p in (args.me2_release, args.me2_loader, args.rad_bink)):
+        if all(p is not None and p.exists() for p in (args.me2_release, args.me2_loader, args.rad_bink)):
             failures += me2(args.exe, args.me2_release, args.me2_loader, args.rad_bink, pathlib.Path(scratch) / "me2")
         else:
             print("  ME2: skipped (no ME2 release, AP ASI Loader build or RAD bink2w64.dll; see --me2-*)")
