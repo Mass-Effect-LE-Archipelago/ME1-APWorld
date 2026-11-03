@@ -51,15 +51,15 @@ Open an [issue](../../issues) and include:
 ## Repository layout
 
 - `worlds/mass_effect_le1/`: the Archipelago world (logic, items, locations, options) and the client.
+- `mod/`: the game mod (`DLC_MOD_ArchipelagoME1`).
+- `tools/le1apbridge/`: the bridge (`LE1APBridge.asi`, built) and its checks table.
 - `tools/release/`: the release packaging script and the bridge installer.
 - `tools/setup/`: the source of Mass Effect AP Setup, the setup app.
 - `vendor/`: Archipelago and LegendaryExplorer as pinned submodules.
 
-The game mod and the bridge ship as built files on the release page.
-
 ## Development
 
-Clone the repository with its submodules:
+Everything comes from this repository. Clone it with its submodules:
 
 ```
 git clone --recurse-submodules <this repo>
