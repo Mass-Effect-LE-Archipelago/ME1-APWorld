@@ -8,6 +8,7 @@ Missable: Automatic 17, No 87, Unobtainable 4, Yes 23.
 - **Automatic**: a story scene or forced encounter gives it.
 - **Yes**: can be lost for good (closing mission, prologue-only, a dialogue choice, or a squadmate who can die).
 - **Unobtainable**: nothing in the game data unlocks it.
+- **Charm/Intimidate**: the number is the Charm or Intimidate skill rank (conditionals F158/F159 compare it with the skill). Only Starships: Carriers needs one (Intimidate 9); elsewhere a check sits on an optional branch or has a check-free alternative.
 - **New-career reward**: a new career on a profile with bool 6479 (Codex_Tracking) set gets these at game start.
 
 ## Aliens: Council Races
@@ -140,7 +141,7 @@ Missable: Automatic 17, No 87, Unobtainable 4, Yes 23.
 | 5925 | Vehicles: M35 Mako | No | Normandy cargo hold (NOR10_11): examine the Mako | None | New-career reward; AP: full / NORMANDY |
 | 6190 | FTL Drive: Appearance | No | Normandy bridge (NOR10_01): examine an object | None | AP: full / NORMANDY |
 | 6191 | FTL Drive: Drive Charge | No | Normandy Engineering (NOR10_12): examine an object | None | AP: full / NORMANDY |
-| 6192 | Starships: Carriers | Yes | Citadel: the snap inspection event (sta30_snap_inspection), Intimidate option | Snap inspection + Intimidate check | Only on the intimidate branch of that event; AP: story / CITADEL |
+| 6192 | Starships: Carriers | Yes | Citadel: the snap inspection event (sta30_snap_inspection), the Intimidate 9 reply about fighter carriers | Intimidate rank 9 during the snap inspection (the Charm 9 reply at the same point does not give it) | One-time event; the only source, and it needs Intimidate 9; AP: story / CITADEL |
 | 6193 | Starships: Cruisers | No | Citadel C-Sec area (STA30_05a): examine an object | None | AP: story / CITADEL |
 | 6194 | Starships: Dreadnought | No | Citadel C-Sec area (STA30_05a): examine an object; Wards view of the Destiny Ascension | None | AP: story / CITADEL |
 | 6195 | Starships: Fighters | No | Citadel C-Sec area (STA30_05a): examine an object | None | AP: story / CITADEL |
@@ -189,7 +190,7 @@ Missable: Automatic 17, No 87, Unobtainable 4, Yes 23.
 | 5922 | Mods | Unobtainable | No source in the game data | - | Transition 4366 is never fired; not an AP check |
 | 5923 | Small Arms | No | Citadel: Dr. Bosker (Presidium); C-Sec area object (STA30_05a); Normandy cargo hold object (NOR10_11) | None | New-career reward; AP: story / CITADEL |
 | 6214 | Grenades | Unobtainable | No source in the game data | - | Transition 5528 is never fired; not an AP check |
-| 7067 | Upgrades | No | Eden Prime: use objects (PRO10 placeables); Citadel: Chellick (C-Sec); Asari diplomat assignment (Persuade) | None | Chellick stays available; AP: story / CITADEL |
+| 7067 | Upgrades | No | Eden Prime: use objects (PRO10 placeables); Citadel: Chellick (C-Sec); Asari diplomat assignment (Charm 3 or Intimidate 4) | None (the diplomat route needs Charm 3 or Intimidate 4) | Chellick and Eden Prime need no skill check; AP: story / CITADEL |
 
 ## Player Tutorials
 
