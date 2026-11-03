@@ -52,8 +52,23 @@ Open an [issue](../../issues) and include:
 
 - `worlds/mass_effect_le1/`: the Archipelago world (logic, items, locations, options) and the client.
 - `tools/release/`: the release packaging script and the bridge installer.
+- `tools/setup/`: the source of Mass Effect AP Setup, the setup app.
+- `vendor/`: Archipelago and LegendaryExplorer as pinned submodules.
 
 The game mod and the bridge ship as built files on the release page.
+
+## Development
+
+Clone the repository with its submodules:
+
+```
+git clone --recurse-submodules <this repo>
+```
+
+Set up Archipelago's environment once (Python 3.11 or newer): `python -m venv vendor/Archipelago/.venv`, then install
+`vendor/Archipelago/requirements.txt` and `pytest` into it.
+
+- Tests: `python tools/test_world.py`.
 
 ## AI Disclosure
 AI was used to aid in the research and development of this multiworld.

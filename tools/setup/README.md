@@ -13,9 +13,8 @@ License: GPL-3.0 (`LICENSE`), because it is built with LegendaryExplorerCore. Th
 ## Build
 
 1. .NET 10 SDK on Windows.
-2. LegendaryExplorerCore source: clone https://github.com/ME3Tweaks/LegendaryExplorer at commit
-   `bd5ec550c5448e460af949c307c8d013e14f4a28` to `vendor/LegendaryExplorer` (next to `tools/`), or pass
-   `-p:LexCoreProject=<path to LegendaryExplorerCore.csproj>`.
+2. LegendaryExplorerCore source: the `vendor/LegendaryExplorer` submodule (`git submodule update --init`), pinned to
+   the commit the app is built with.
 3. `dotnet build tools/setup/APSetup.csproj -c Release`, or `python tools/setup/package.py <version> --me1-release <release folder>`
    for the self-contained single-file exe next to its `ME1\` payload.
 

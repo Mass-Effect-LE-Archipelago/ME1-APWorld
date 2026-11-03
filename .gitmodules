@@ -1,0 +1,8 @@
+[submodule "vendor/Archipelago"]
+	path = vendor/Archipelago
+	url = https://github.com/ArchipelagoMW/Archipelago.git
+	shallow = true
+[submodule "vendor/LegendaryExplorer"]
+	path = vendor/LegendaryExplorer
+	url = https://github.com/ME3Tweaks/LegendaryExplorer.git
+	shallow = true
