@@ -4,7 +4,7 @@ usage: python tools/release/build_release.py <version>
 Release assets, each uploaded on its own (the release notes link the setup guide, which is not packaged):
   mass_effect_le1.apworld, the YAML template, ArchipelagoME1-mod-<version>.zip (ME3Tweaks Mod Manager import:
   moddesc.ini + DLC_MOD_ArchipelagoME1), ArchipelagoME1-bridge-<version>.zip (ASI/ with the bridge and checks table,
-  install-bridge.ps1), SHA256SUMS.
+  install-bridge.ps1), options-me1.json (the option schema the launcher's Options page reads), SHA256SUMS.
 Everything is read from the repo: the world (worlds/), the game mod (mod/), the bridge (tools/le1apbridge/) and
 Archipelago (the vendor/Archipelago submodule, with its .venv set up). Nothing under the game folder is touched.
 """
@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -26,7 +27,10 @@ AP = os.path.join(REPO, "vendor", "Archipelago")
 YAML = "Mass Effect Legendary Edition 1.yaml"
 MOD_FOLDER = "DLC_MOD_ArchipelagoME1"
 MOD_VERSION_FILE = "ArchipelagoME1.version"
-SETUP_URL = "https://github.com/Mass-Effect-LE-Archipelago/ME1-APWorld/blob/main/worlds/mass_effect_le1/docs/setup_en.md"
+# Docs links to this repository's own pages (releases, issues), relative so they work on any fork; made absolute in the
+# packaged apworld, whose docs Archipelago's website renders outside the repository.
+REPO_LINK = re.compile(r"\]\((?:\.\./)+((?:releases|issues)\b[^)]*)\)")
+OPTIONS = os.path.join(REPO, "tools", "setup", "options-me1.json")  # the world's option schema
 # The galaxy-map travel videos (mass relay jump, FTL flyby) are replaced by empty files, as the "Fully Skipped" option
 # of Nexus mod 2422 does (needs Mod Manager's enhanced Bink, requested below). Each one can be kept at install time.
 SKIPPED_MOVIES = (("GLO_01_Relay.bik", "Mass Relay Jump Video", "mass relay jump video"),
@@ -61,14 +65,30 @@ altfiles = ({movie_options})
 """
 
 
-def zip_dir(src: str, zip_path: str, arc_root: str, skip=lambda rel: False) -> None:
+def github_repo() -> str:
+    """https://github.com/<owner>/<name> of the remote the current branch tracks (else origin)."""
+    def git(*args: str) -> str:
+        return subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True).stdout.strip()
+    upstream = git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+    remote = upstream.split("/", 1)[0] if "/" in upstream else "origin"
+    url = git("remote", "get-url", remote)
+    match = re.search(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?/?$", url)
+    if match is None:
+        raise SystemExit(f"remote {remote} ({url or 'not set'}) is not a GitHub repository: the release links need one")
+    return f"https://github.com/{match.group(1)}/{match.group(2)}"
+
+
+def zip_dir(src: str, zip_path: str, arc_root: str, skip=lambda rel: False, transform=lambda rel, data: data) -> None:
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for base, dirs, files in os.walk(src):
             dirs[:] = sorted(d for d in dirs if not skip(os.path.relpath(os.path.join(base, d), src)))
             for f in sorted(files):
                 rel = os.path.relpath(os.path.join(base, f), src)
                 if not skip(rel):
-                    z.write(os.path.join(base, f), os.path.join(arc_root, rel).replace("\\", "/"))
+                    with open(os.path.join(base, f), "rb") as handle:
+                        data = transform(rel, handle.read())
+                    z.writestr(zipfile.ZipInfo.from_file(os.path.join(base, f), os.path.join(arc_root, rel).replace("\\", "/")),
+                               data, zipfile.ZIP_DEFLATED)
 
 
 def ap_python(ap: str) -> str:
@@ -176,14 +196,22 @@ def main(version: str) -> None:
     def world_skip(rel: str) -> bool:
         parts = rel.replace("\\", "/").split("/")
         return "__pycache__" in parts or parts[0] == "test"
+    repo_url = github_repo()
+
+    def absolute_links(rel: str, data: bytes) -> bytes:
+        if not rel.endswith(".md"):
+            return data
+        return REPO_LINK.sub(lambda m: f"]({repo_url}/{m.group(1)})", data.decode("utf-8")).encode("utf-8")
     apworld = os.path.join(out, "mass_effect_le1.apworld")
-    zip_dir(WORLD, apworld, "mass_effect_le1", lambda rel: world_skip(rel) or rel == "archipelago.json")
+    zip_dir(WORLD, apworld, "mass_effect_le1", lambda rel: world_skip(rel) or rel == "archipelago.json", absolute_links)
     # .apworld manifest: the folder's archipelago.json plus the container fields Archipelago's own packer writes
     # (APWorldContainer.get_manifest: compatible_version 7, container version 7).
     with open(os.path.join(WORLD, "archipelago.json"), encoding="utf-8-sig") as f:
         manifest = {**json.load(f), "compatible_version": 7, "version": 7}
     with zipfile.ZipFile(apworld, "a", zipfile.ZIP_DEFLATED) as z:
         z.writestr("mass_effect_le1/archipelago.json", json.dumps(manifest, indent=4))
+
+    shutil.copyfile(OPTIONS, os.path.join(out, "options-me1.json"))
 
     mod_src = os.path.join(MOD, MOD_FOLDER)
     if not os.path.isfile(os.path.join(mod_src, "AutoLoad.ini")):
@@ -198,7 +226,8 @@ def main(version: str) -> None:
     for movie, _group, _noun in SKIPPED_MOVIES:
         open(os.path.join(movies, movie), "wb").close()  # empty: the game skips the video
     with open(os.path.join(tmp, "moddesc.ini"), "w", encoding="utf-8", newline="\r\n") as f:
-        f.write(MODDESC.format(version=version, mod=MOD_FOLDER, movie_options=MOVIE_OPTIONS, setup_url=SETUP_URL))
+        f.write(MODDESC.format(version=version, mod=MOD_FOLDER, movie_options=MOVIE_OPTIONS,
+                               setup_url=f"{repo_url}/blob/main/worlds/mass_effect_le1/docs/setup_en.md"))
     zip_dir(tmp, os.path.join(out, f"ArchipelagoME1-mod-{version}.zip"), "ArchipelagoME1")
     shutil.rmtree(tmp)
 
