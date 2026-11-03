@@ -137,6 +137,14 @@ class TestUnchartedGates(MassEffectLE1TestBase):
                                ("Feros: Zhu's Hope Merchant Slot 1", False)):
             self.assertEqual(takes_own_progression(self, name), not closed, name)
 
+    def test_morality_planets_hold_no_progression(self) -> None:
+        """Chohe and Nonuel open only with 75% Paragon or Renegade (their star systems' conditional 1669)."""
+        for name, missable in (("Chohe: Technician Kit 1", True), ("Nonuel: Aid Station 1", True),
+                               ("Klensal: Locked Secure Weapon Locker 1", False)):
+            self.assertEqual(takes_own_progression(self, name), not missable, name)
+        location = self.multiworld.get_location("Chohe: Technician Kit 1", self.player)
+        self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))))
+
     def test_joker_prologue_pages_hold_no_progression(self) -> None:
         for name in ("Codex: Humanity and the Systems Alliance: Systems Alliance",
                      "Codex: Humanity and the Systems Alliance: Timeline"):

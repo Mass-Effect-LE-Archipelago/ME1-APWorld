@@ -53,7 +53,8 @@ uncharted-world landing, so codex pages and quests from their later conversation
 on uncharted worlds. Kaidan's and Ashley's conversations also wait for Therum, Feros or Noveria to be finished.
 Kaidan, Ashley and Wrex can die on Virmire, so codex pages only they give hold no progression items (this game's gear
 can be there) and quests only they give hold filler only. The same goes for Joker's prologue pages, which are only
-there until you meet Udina on the Citadel.
+there until you meet Udina on the Citadel, and for Chohe and Nonuel, whose star systems only appear after the 75%
+Paragon or Renegade transmission.
 Aid Stations cannot be used at full medi-gel: use a medi-gel first to send the check.
 
 Eden Prime, Therum, Virmire and Asteroid X57 close for good once finished, and Feros and Noveria close in part (afterwards
