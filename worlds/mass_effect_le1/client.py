@@ -52,6 +52,7 @@ VIRMIRE_SURVIVOR_PLOT_BOOLS = (3827, 3828)  # set by the Virmire choice, which r
 ILOS_OPEN_PLOT_BOOL = 4103  # D5: set by the client once the fragment gate (and D9) is met
 UNLOCK_CONTAINERS_PLOT_BOOL = 20190  # the bridge opens Decryption containers like plain ones while this is set
 INFINITE_SPRINT_PLOT_BOOL = 20191  # bridge v9+ (fixed in v11): sprinting never drains stamina while this is set
+TWO_SQUADMATES_PLOT_BOOL = 20194  # set while two squadmates are in the party: the mod's landing gate (Agebinium)
 # Journal "Archipelago" quest (le1mod journal): shown once JOURNAL_ACTIVE is set through its transition (bridge XST);
 # its plot items read the values below, which the client keeps current.
 JOURNAL_ACTIVE_PLOT_BOOL = 20192
@@ -542,6 +543,16 @@ def sync_human_squad(bridge: ItemBridge) -> bool:
     return added
 
 
+def sync_two_squadmates(bridge: ItemBridge, in_party: PlotReader) -> bool:
+    """Keep TWO_SQUADMATES_PLOT_BOOL equal to "two or more InParty bools are set" (read from `in_party`); True if
+    written."""
+    value = sum(in_party.get_bool(index) for index in SQUAD_INPARTY_PLOT_BOOL.values()) >= 2
+    if bridge.get_bool(TWO_SQUADMATES_PLOT_BOOL) == value:
+        return False
+    bridge.set_bool(TWO_SQUADMATES_PLOT_BOOL, value)
+    return True
+
+
 def sync_ilos_gate(
     bridge: ItemBridge,
     received_items: Sequence[ReceivedItem],
@@ -600,9 +611,11 @@ def evaluate_location_predicates(bridge: PlotReader) -> set[int]:
 
 
 def _snap_spec() -> tuple[tuple[tuple[int, int], ...], tuple[int, ...]]:
-    """What SNAP reads: every location predicate's bools (as one vanilla and one AP range), the goal, and the ints."""
+    """What SNAP reads: every location predicate's bools (as one vanilla and one AP range), the goal, the InParty
+    bools, and the ints."""
     bools = {index for predicate in LOCATION_PREDICATES.values() if predicate.kind == "bool" for index in predicate.indices}
     bools.add(GOAL_PLOT_BOOL)
+    bools.update(SQUAD_INPARTY_PLOT_BOOL.values())  # sync_two_squadmates
     vanilla, ours = [index for index in bools if index < 20000], [index for index in bools if index >= 20000]
     ranges = [(0, max(vanilla) + 1)] + ([(min(ours), max(ours) - min(ours) + 1)] if ours else [])
     ints = {predicate.indices[0] for predicate in LOCATION_PREDICATES.values() if predicate.kind == "int"}
@@ -904,6 +917,7 @@ class ME1Context(CommonContext):
             self._inventory_full_notice(waiting[0] if waiting else 0, delivered == len(items))
             if self.human_squad_at_citadel and sync_human_squad(self.bridge):
                 logger.info("Kaidan and Ashley joined the party (Kaidan and Ashley Join at the Citadel)")
+            sync_two_squadmates(self.bridge, snapshot)
             if self.unlock_containers and not self.bridge.get_bool(UNLOCK_CONTAINERS_PLOT_BOOL):
                 self.bridge.set_bool(UNLOCK_CONTAINERS_PLOT_BOOL, True)
                 logger.info("Unlock Containers: Decryption containers now open like plain ones")

@@ -54,13 +54,23 @@ class TestTwoDA(unittest.TestCase):
         pkg = le1pkg.Package("fake", b"", None, bytearray(), names=names)
         rows = {307: {"tid": 307, "drops": 22, "Name": "QMPremium", "csid": 1},
                 168: {"tid": 168, "drops": 14, "Name": "Other", "csid": 1}}
-        kinds = {"tid": twoda.INT, "drops": twoda.INT, "Name": twoda.NAME, "csid": twoda.INT}
-        data = twoda.build(pkg, 2, ["tid", "drops", "Name", "csid"], rows, kinds)
+        data = twoda.build(pkg, 2, ["tid", "drops", "Name", "csid"], rows)
         pkg.image = bytearray(data)
         export = le1pkg.Export(1, 0, 0, "table", len(data), 0, 0)
         columns, read_rows = twoda.read(pkg, export)
         self.assertEqual(columns, ["tid", "drops", "Name", "csid"])
         self.assertEqual(read_rows, rows)
+
+    def test_numbered_names_mixed_cells_and_empty_cells(self) -> None:
+        names = ["None", "m_lstRowNumbers", "ArrayProperty", "Shader", "Bump", "Event", "GXM_Planet"]
+        pkg = le1pkg.Package("fake", b"", None, bytearray(), names=names)
+        rows = {89: {"Shader": "GXM_Planet_178", "Bump": 0.25, "Event": 7}, 90: {"Shader": "GXM_Planet", "Bump": 0}}
+        data = twoda.build(pkg, 2, ["Shader", "Bump", "Event"], rows)
+        self.assertIn(struct.pack("<ii", names.index("GXM_Planet"), 179), data)  # base name and number, as UE3 stores it
+        pkg.image = bytearray(data)
+        _, read_rows = twoda.read(pkg, le1pkg.Export(1, 0, 0, "table", len(data), 0, 0))
+        self.assertEqual(read_rows, rows)
+        self.assertIsInstance(read_rows[90]["Bump"], int)
 
 
 @unittest.skipUnless(os.environ.get("LE1_GAME"), "set LE1_GAME to the LE1 game folder")

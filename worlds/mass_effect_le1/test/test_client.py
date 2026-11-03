@@ -21,6 +21,8 @@ from ..client import (
     plot_bool_for_item,
     sync_human_squad,
     sync_ilos_gate,
+    sync_two_squadmates,
+    TWO_SQUADMATES_PLOT_BOOL,
     evaluate_location_predicates,
     parse_plot_predicate,
     sync_received_items as _sync_received_items,
@@ -443,6 +445,17 @@ class TestSquadAndIlos(unittest.TestCase):
                 after = FakeBridge(bools={3939: False, 3940: False, survivor: True})
                 self.assertFalse(sync_human_squad(after))
                 self.assertEqual(after.bool_writes, [])
+
+    def test_two_squadmates_bool_follows_the_party(self):
+        cases = [((), False), ((3941,), False), ((3941, 3943), True), ((3939, 3940, 3944), True)]
+        for in_party, value in cases:
+            with self.subTest(in_party=in_party):
+                bridge = FakeBridge(bools={index: index in in_party for index in range(3939, 3945)})
+                self.assertEqual(sync_two_squadmates(bridge, bridge), value)  # written only when it changes
+                self.assertEqual(bridge.bool_writes, [(TWO_SQUADMATES_PLOT_BOOL, True)] if value else [])
+        bridge = FakeBridge(bools={3941: True, TWO_SQUADMATES_PLOT_BOOL: True})  # back to one (an older save)
+        self.assertTrue(sync_two_squadmates(bridge, bridge))
+        self.assertEqual(bridge.bool_writes, [(TWO_SQUADMATES_PLOT_BOOL, False)])
 
     def test_ilos_gate_does_not_rewrite_when_open(self):
         bridge = FakeBridge(bools={2509: True, ILOS_OPEN_PLOT_BOOL: True})

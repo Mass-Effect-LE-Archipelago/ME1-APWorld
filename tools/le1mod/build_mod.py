@@ -15,6 +15,8 @@ Patches (squadmates join only through Archipelago items):
 - shop stock (BIOG_2DA_APME1_Treasure_X.pcc, Treasure_Tables_TreasureTables_part_1): a merchant's stock draws `drops`
   entries from its treasure table, and the mod's Archipelago Item entries are extra entries in those tables, so each
   such table draws all its entries (vanilla and Archipelago); every shop slot is then stocked.
+- landing gates (BIOG_2DA_APME1_GalaxyMap_X.pcc, GalaxyMap_Planet_part_1): planets with a section that needs two
+  squadmates (Agebinium) are landable only while the client's two-squadmates bool is set.
 """
 from __future__ import annotations
 
@@ -71,6 +73,26 @@ def patch_transition_map(src: str, dest: str, export_name: str, dll: str) -> lis
     return changed
 
 
+def override_rows(path: str, export_name: str, rows: dict[int, dict[str, object]], dll: str) -> None:
+    """Write `rows` into the mod's Bio2DANumberedRows export `export_name` (rows already there with other numbers
+    stay), adding the names they need, and check that the table reads back."""
+    pkg = le1pkg.read(path, dll)
+    export = pkg.find("Bio2DANumberedRows", export_name)
+    columns, table = twoda.read(pkg, export)
+    table.update(rows)
+    names = ["m_lstRowNumbers", "ArrayProperty", "None"]
+    names += [twoda.split_name(row[c])[0] for row in rows.values() for c in row if isinstance(row[c], str)]
+    added = le1pkg.add_names(pkg, list(dict.fromkeys(names)))
+    pkg.names.extend(added)
+    net_index = struct.unpack_from("<i", pkg.image, export.offset)[0]
+    data = twoda.build(pkg, net_index, columns, table)
+    del pkg.names[len(pkg.names) - len(added):]
+    le1pkg.write_image(pkg, le1pkg.relayout(pkg, added, {export.index: data}), path, dll)
+    check = le1pkg.read(path, dll)
+    if twoda.read(check, check.find("Bio2DANumberedRows", export_name))[1] != table:
+        raise SystemExit(f"{path}: {export_name} does not read back")
+
+
 SHOP_PACKAGE = "BIOG_2DA_APME1_Treasure_X.pcc"
 VANILLA_TREASURE_TABLES = "BIOG_2DA_TreasureTables_X.Treasure_Tables_TreasureTables"  # in Engine.pcc
 VANILLA_TREASURE_ENTRIES = "BIOG_2DA_TreasureTables_X.Treasure_Tables_TreasureEntries"
@@ -91,19 +113,30 @@ def patch_shop_draws(path: str, engine: str, dll: str) -> dict[int, dict[str, ob
     for entry in vanilla_entries.values():
         entry_counts[entry["tid"]] = entry_counts.get(entry["tid"], 0) + 1
     rows = {tid: {**vanilla[tid], "drops": entry_counts.get(tid, 0) + count} for tid, count in sorted(slots.items())}
+    override_rows(path, "Treasure_Tables_TreasureTables_part_1", rows, dll)
+    return rows
 
-    export = pkg.find("Bio2DANumberedRows", "Treasure_Tables_TreasureTables_part_1")
-    columns, _ = twoda.read(pkg, export)
-    added = le1pkg.add_names(pkg, ["m_lstRowNumbers", "ArrayProperty", "None"] + [r["Name"] for r in rows.values()])
-    pkg.names.extend(added)
-    net_index = struct.unpack_from("<i", pkg.image, export.offset)[0]
-    kinds = {"tid": twoda.INT, "drops": twoda.INT, "Name": twoda.NAME, "csid": twoda.INT}
-    data = twoda.build(pkg, net_index, columns, rows, kinds)
-    del pkg.names[len(pkg.names) - len(added):]
-    le1pkg.write_image(pkg, le1pkg.relayout(pkg, added, {export.index: data}), path, dll)
-    check = le1pkg.read(path, dll)
-    if twoda.read(check, check.find("Bio2DANumberedRows", "Treasure_Tables_TreasureTables_part_1"))[1] != rows:
-        raise SystemExit(f"{path}: the written shop draws do not read back")
+
+PLANET_PACKAGE = "BIOG_2DA_APME1_GalaxyMap_X.pcc"
+VANILLA_PLANETS = "BIOG_2DA_GalaxyMap_X.GalaxyMap_Planet"  # in Engine.pcc
+TWO_SQUADMATES = 20194  # set by the client while two squadmates are in the party
+# GalaxyMap_Planet row -> plot bool its landing needs; the world's logic has the same planets (uncharted.py)
+PLANET_GATES = {89: TWO_SQUADMATES}  # Agebinium
+
+
+def patch_planet_gates(path: str, engine: str, dll: str) -> dict[int, dict[str, object]]:
+    """Override rows for the planets in PLANET_GATES: the vanilla row, landable only while its plot bool is set
+    (UsablePlanetConditional 0: UsablePlanetFunction is a plot bool, as on vanilla gated planets). Returns the rows."""
+    vanilla_pkg = le1pkg.read(engine, dll)
+    export = vanilla_pkg.find("Bio2DANumberedRows", VANILLA_PLANETS)
+    columns, vanilla = twoda.read(vanilla_pkg, export)
+    mod_pkg = le1pkg.read(path, dll)
+    if twoda.read(mod_pkg, mod_pkg.find("Bio2DANumberedRows", "GalaxyMap_Planet_part_1"))[0] != columns:
+        raise SystemExit(f"{path}: GalaxyMap_Planet_part_1 columns differ from the game's")
+    rows = {row: {**vanilla[row], "UsablePlanetConditional": 0, "UsablePlanetFunction": plot_bool,
+                  "UsablePlanetParameter": 0}
+            for row, plot_bool in PLANET_GATES.items()}
+    override_rows(path, "GalaxyMap_Planet_part_1", rows, dll)
     return rows
 
 
@@ -131,6 +164,9 @@ def main(game: str, base: str | None = None) -> None:
         print(f"{package}: {len(changed)} in-party writes retargeted (transitions {ids})")
     rows = patch_shop_draws(os.path.join(mod_cooked, SHOP_PACKAGE), os.path.join(cooked, "Engine.pcc"), dll)
     print(f"{SHOP_PACKAGE}: shop draws " + ", ".join(f"{r['Name']} {r['drops']}" for r in rows.values()))
+    rows = patch_planet_gates(os.path.join(mod_cooked, PLANET_PACKAGE), os.path.join(cooked, "Engine.pcc"), dll)
+    print(f"{PLANET_PACKAGE}: landing gates " + ", ".join(f"{r['NameText']} bool {r['UsablePlanetFunction']}"
+                                                       for r in rows.values()))
     print(f"mod: {MOD_DIR}")
 
 

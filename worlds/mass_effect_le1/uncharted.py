@@ -19,7 +19,8 @@ Paragon or Renegade transmissions set them (sp125 and sp126; F1110/F1111: int 47
 both planets. Their checks hold no progression (regions.no_progression_rule).
 
 Some planets have a section that only works with two squadmates (playtest 2026-11-03): Agebinium (53). Their checks need
-any two squadmates (rules.TWO_SQUADMATES).
+any two squadmates (rules.TWO_SQUADMATES), and the mod lands there only while two squadmates are in the party
+(tools/le1mod/build_mod.py PLANET_GATES, client.TWO_SQUADMATES_PLOT_BOOL).
 """
 from __future__ import annotations
 

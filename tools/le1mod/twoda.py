@@ -3,15 +3,26 @@
 Export data: net index (int), properties (m_lstRowNumbers: an ArrayProperty of row numbers, then None), the cells,
 then the columns (count, then per column: name and index). Cells come in two layouts: plain (cell count > 0; per cell
 a type byte and its value, row by row, then a zero int) or indexed (a zero int, a count, then per cell its index,
-type byte and value). Cell types: 0 int, 1 name, 2 float.
+type byte and value; cells left out are empty). Cell types: 0 int, 1 name, 2 float; a column can hold more than one.
+
+Names are read as text: a numbered name is its base name, "_", then its number - 1 (UE3 name numbers). Writing splits
+such text the same way, so `split_name` gives the base names a package needs.
 """
 from __future__ import annotations
 
+import re
 import struct
 
 import le1pkg
 
 INT, NAME, FLOAT = 0, 1, 2
+_NUMBERED = re.compile(r"(.+)_(0|[1-9]\d*)")
+
+
+def split_name(text: str) -> tuple[str, int]:
+    """(base name, name number) of a name read as text."""
+    match = _NUMBERED.fullmatch(text)
+    return (match.group(1), int(match.group(2)) + 1) if match else (text, 0)
 
 
 def _name(pkg: le1pkg.Package, data: bytes | bytearray, o: int) -> str:
@@ -19,8 +30,8 @@ def _name(pkg: le1pkg.Package, data: bytes | bytearray, o: int) -> str:
     return pkg.names[index] + (f"_{number - 1}" if number > 0 else "")
 
 
-def read(pkg: le1pkg.Package, export: le1pkg.Export) -> tuple[list[str], dict[int, dict[str, object]]]:
-    """(column names, {row number: {column: value}}) of a Bio2DANumberedRows export."""
+def _parse(pkg: le1pkg.Package, export: le1pkg.Export) -> tuple[list[str], list[int], dict[int, tuple[int, object]]]:
+    """(column names, row numbers, {cell index: (type, value)})."""
     d, o = pkg.image, export.offset + 4
     rows: list[int] = []
     while True:  # properties: only m_lstRowNumbers matters
@@ -33,13 +44,13 @@ def read(pkg: le1pkg.Package, export: le1pkg.Export) -> tuple[list[str], dict[in
             count = struct.unpack_from("<i", d, o + 24)[0]
             rows = list(struct.unpack_from(f"<{count}i", d, o + 28))
         o += 24 + size
-    cells: dict[int, object] = {}
+    cells: dict[int, tuple[int, object]] = {}
 
-    def value(at: int) -> tuple[object, int]:
+    def value(at: int) -> tuple[tuple[int, object], int]:
         kind = d[at]
         if kind == NAME:
-            return _name(pkg, d, at + 1), at + 9
-        return struct.unpack_from("<f" if kind == FLOAT else "<i", d, at + 1)[0], at + 5
+            return (kind, _name(pkg, d, at + 1)), at + 9
+        return (kind, struct.unpack_from("<f" if kind == FLOAT else "<i", d, at + 1)[0]), at + 5
 
     count = struct.unpack_from("<i", d, o)[0]
     o += 4
@@ -59,17 +70,29 @@ def read(pkg: le1pkg.Package, export: le1pkg.Export) -> tuple[list[str], dict[in
     for _ in range(columns_count):
         columns[struct.unpack_from("<i", d, o + 8)[0]] = _name(pkg, d, o)
         o += 12
-    names = [columns[i] for i in sorted(columns)]
-    table = {row: {names[c]: cells[r * len(names) + c] for c in range(len(names)) if r * len(names) + c in cells}
+    return [columns[i] for i in sorted(columns)], rows, cells
+
+
+def read(pkg: le1pkg.Package, export: le1pkg.Export) -> tuple[list[str], dict[int, dict[str, object]]]:
+    """(column names, {row number: {column: value}}) of a Bio2DANumberedRows export; empty cells are left out."""
+    names, rows, cells = _parse(pkg, export)
+    width = len(names)
+    table = {row: {names[c]: cells[r * width + c][1] for c in range(width) if r * width + c in cells}
              for r, row in enumerate(rows)}
     return names, table
 
 
-def build(pkg: le1pkg.Package, net_index: int, columns: list[str], rows: dict[int, dict[str, object]],
-          kinds: dict[str, int]) -> bytes:
-    """Export data for these rows (indexed layout, every cell written); names must already be in pkg.names."""
+def kind_of(value: object) -> int:
+    """A cell's type from its value as `read` gives it: str is a name, float a float, int an int."""
+    return NAME if isinstance(value, str) else FLOAT if isinstance(value, float) else INT
+
+
+def build(pkg: le1pkg.Package, net_index: int, columns: list[str], rows: dict[int, dict[str, object]]) -> bytes:
+    """Export data for these rows (indexed layout; a column missing from a row is an empty cell; each cell's type
+    comes from its value, kind_of). Base names (split_name) must already be in pkg.names."""
     def name_ref(name: str) -> bytes:
-        return struct.pack("<ii", pkg.names.index(name), 0)
+        base, number = split_name(name)
+        return struct.pack("<ii", pkg.names.index(base), number)
     numbers = sorted(rows)
     out = bytearray(struct.pack("<i", net_index))
     if numbers:
@@ -80,9 +103,11 @@ def build(pkg: le1pkg.Package, net_index: int, columns: list[str], rows: dict[in
     written = 0
     for r, number in enumerate(numbers):
         for c, column in enumerate(columns):
-            kind = kinds[column]
-            cells += struct.pack("<iB", r * len(columns) + c, kind)
+            if column not in rows[number]:
+                continue
             value = rows[number][column]
+            kind = kind_of(value)
+            cells += struct.pack("<iB", r * len(columns) + c, kind)
             cells += name_ref(value) if kind == NAME else struct.pack("<f" if kind == FLOAT else "<i", value)
             written += 1
     out += struct.pack("<ii", 0, written) + cells
