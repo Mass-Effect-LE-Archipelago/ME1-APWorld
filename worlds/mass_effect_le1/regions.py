@@ -68,10 +68,11 @@ def location_included(world: MassEffectLE1World, loc: data.LocationData) -> bool
     return True
 
 
-# Eden Prime, Therum and Virmire close once finished (Therum and Virmire through GateOverride F1402/F699; their levels
-# never check the done bools, so reopening would replay the mission). Codex pages set only inside these missions; a new
-# career's achievement rewards (BIOA_NOR10_01_DS1 GAME_START) can also set some, which logic does not count on.
-CLOSING_MISSIONS = (R.EDEN_PRIME, R.THERUM, R.VIRMIRE)
+# Eden Prime, Therum, Virmire and Asteroid X57 close once finished (Therum and Virmire through GateOverride F1402/F699;
+# their levels never check the done bools, so reopening would replay the mission). Codex pages set only inside these
+# missions; a new career's achievement rewards (BIOA_NOR10_01_DS1 GAME_START) can also set some, which logic does not
+# count on.
+CLOSING_MISSIONS = (R.EDEN_PRIME, R.THERUM, R.VIRMIRE, R.ASTEROID_X57)
 MISSION_ONLY_CODEX = frozenset({
     "Codex: Aliens: Non-Council Races: Geth",  # Eden Prime
     'Codex: Weapons, Armor and Equipment: Kinetic Barriers ("Shields")',  # Eden Prime or the end of Therum
