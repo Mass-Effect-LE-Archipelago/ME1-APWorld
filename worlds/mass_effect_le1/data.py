@@ -41,6 +41,11 @@ class Region(str, Enum):
     UNCHARTED = "Uncharted Worlds"  # uncharted planets and derelict freighters: after Act 1, with the Mako
 
 
+# Landing on Ilos starts the finale with no way back: these regions never hold this world's progression items
+# (regions.no_return_item_allowed). Other games' items are fine there.
+NO_RETURN_REGIONS = (Region.ILOS, Region.FINAL_CITADEL)
+
+
 @dataclass(frozen=True)
 class ItemData:
     offset: int

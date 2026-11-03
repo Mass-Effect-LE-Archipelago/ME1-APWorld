@@ -126,6 +126,13 @@
      ]
     },
     {
+     "key": "ilos_useful_items",
+     "display": "Gear on Ilos",
+     "doc": "Landing on Ilos starts the finale, with no way back. Ilos never holds this game's progression items (other\ngames' items can be there).\n\nOn: Ilos can hold this game's gear and upgrades. Off: only filler and other games' items.",
+     "type": "toggle",
+     "default": true
+    },
+    {
      "key": "shop_slots",
      "display": "Shop Slots",
      "doc": "Archipelago Items for sale at each merchant (ten merchants: Normandy, Citadel, Noveria, Feros, Virmire), a few\nhundred credits each. Buying one sends its item. The slots appear in a shop's stock the first time you visit it, so\nconnect the client before your first shop visit. Commander Rentola's stock on the Normandy (there only for a short\nwhile after Virmire) holds filler only; the Virmire camp follows Finished Mission Checks.",

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from BaseClasses import ItemClassification, Location, LocationProgressType, Region
+from BaseClasses import Item, ItemClassification, Location, LocationProgressType, Region
 from rule_builder.options import OptionFilter
 from rule_builder.rules import Has, HasAll, HasFromList, Rule, True_
 from rule_builder.field_resolvers import FromOption, FromWorldAttr
+from worlds.generic.Rules import add_item_rule
 
 from . import data, uncharted
 from .data import Region as R
@@ -87,6 +88,16 @@ def location_excluded(world: MassEffectLE1World, name: str, loc: data.LocationDa
             and (loc.container is not None or loc.shop_slot is not None or name in MISSION_ONLY_CODEX))
 
 
+def no_return_item_allowed(world: MassEffectLE1World, item: Item) -> bool:
+    """Whether a location in data.NO_RETURN_REGIONS may hold this item: any other player's item, this world's filler,
+    and this world's useful items when ilos_useful_items is on; never this world's progression."""
+    if item.player != world.player:
+        return True
+    if item.advancement:
+        return False
+    return bool(world.options.ilos_useful_items) or not item.useful
+
+
 def create_regions(world: MassEffectLE1World) -> None:
     regions = {r: Region(r.value, world.player, world.multiworld) for r in R}
     if not world.options.bring_down_the_sky:
@@ -105,6 +116,8 @@ def create_regions(world: MassEffectLE1World) -> None:
         location = MassEffectLE1Location(world.player, name, data.LOCATION_NAME_TO_ID[name], regions[loc.region])
         if location_excluded(world, name, loc):
             location.progress_type = LocationProgressType.EXCLUDED
+        if loc.region in data.NO_RETURN_REGIONS:
+            add_item_rule(location, lambda item: no_return_item_allowed(world, item))
         regions[loc.region].locations.append(location)
 
     _add_event(world, regions[R.CITADEL], data.EVENT_ACT1)

@@ -1,5 +1,5 @@
-from ..data import COORDINATES, EVENT_ACT1, EVENT_FEROS, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
-from BaseClasses import LocationProgressType
+from ..data import COORDINATES, EVENT_ACT1, EVENT_FEROS, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, NO_RETURN_REGIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
+from BaseClasses import Item, ItemClassification, LocationProgressType
 from ..options import options_presets
 from . import MassEffectLE1TestBase
 
@@ -155,9 +155,9 @@ class TestFragmentClamping(MassEffectLE1TestBase):
                "aid_stations": False, "shop_slots": 0}
 
     def test_fragments_clamped_to_location_room(self) -> None:
-        # 23 locations - 6 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 6
-        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 6)
-        self.assertEqual(self.world.fragments_required, 6)
+        # 23 locations - 1 on Ilos (no own progression) - 6 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 5
+        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 5)
+        self.assertEqual(self.world.fragments_required, 5)
 
 
 class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
@@ -359,3 +359,50 @@ class TestPresetStoryFocus(MassEffectLE1TestBase):
 
 class TestPresetCompletionist(MassEffectLE1TestBase):
     options = options_presets["Completionist"]
+
+
+class TestIlosNoReturn(MassEffectLE1TestBase):
+    """Ilos is a point of no return: never this world's progression; its gear by default; other games' items always."""
+
+    def no_return_locations(self) -> list:
+        return [location for region in NO_RETURN_REGIONS
+                for location in self.multiworld.get_region(region.value, self.player).locations
+                if location.address is not None]
+
+    def assert_allowed(self, item: Item, allowed: bool) -> None:
+        locations = self.no_return_locations()
+        self.assertGreater(len(locations), 1)  # the Conduit story check and Ilos containers
+        for location in locations:
+            self.assertEqual(location.item_rule(item), allowed, f"{item.name} at {location.name}")
+
+    def test_own_progression_never_on_ilos(self) -> None:
+        for name in (FRAGMENT, COORDINATES[Region.EDEN_PRIME], "Garrus Vakarian"):
+            self.assert_allowed(self.world.create_item(name), False)
+
+    def test_own_gear_and_filler(self) -> None:
+        for name in (next(iter(GEAR_BY_NAME)), UPGRADE, FILLER[0]):
+            self.assert_allowed(self.world.create_item(name), True)
+
+    def test_other_games_items_allowed(self) -> None:
+        self.assert_allowed(Item("Other Game Key", ItemClassification.progression, None, self.player + 1), True)
+
+    def test_other_locations_take_own_progression(self) -> None:
+        location = self.multiworld.get_location("Citadel: Recruit Garrus", self.player)
+        self.assertTrue(location.item_rule(self.world.create_item(FRAGMENT)))
+
+
+class TestIlosNoGear(TestIlosNoReturn):
+    options = {"ilos_useful_items": False}
+
+    def test_own_gear_and_filler(self) -> None:
+        for name in (next(iter(GEAR_BY_NAME)), UPGRADE):
+            self.assert_allowed(self.world.create_item(name), False)
+        self.assert_allowed(self.world.create_item(FILLER[0]), True)
+
+    def test_ilos_keeps_filler_room(self) -> None:
+        unfilled = self.multiworld.get_unfilled_locations(self.player)
+        reserved = sum(1 for location in unfilled if location.progress_type == LocationProgressType.EXCLUDED
+                       or location in self.no_return_locations())
+        useful = sum(1 for item in self.multiworld.itempool if item.player == self.player and item.useful)
+        self.assertLessEqual(useful, len(unfilled) - reserved - sum(
+            1 for item in self.multiworld.itempool if item.player == self.player and item.advancement))

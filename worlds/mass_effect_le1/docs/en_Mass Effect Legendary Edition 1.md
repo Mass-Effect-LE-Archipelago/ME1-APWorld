@@ -50,6 +50,9 @@ Uncharted worlds, derelict freighters and side-assignment transmissions count as
 act, with the Mako. Aid Stations cannot be used at full medi-gel: use a medi-gel first to send the check.
 
 Therum and Virmire close for good once finished, so their containers hold filler by default (finished_mission_checks).
+Landing on Ilos starts the finale with no way back, so Ilos never holds this game's progression items (squadmates,
+coordinates, the Mako, fragments). It can still hold other games' items, and this game's gear unless ilos_useful_items
+is off.
 A shop fills its stock the first time you open it: connect the client before your first shop visit so it shows the
 right number of slots. Commander Rentola only sells on the Normandy for a short while after Virmire, so his slots hold
 filler only.
