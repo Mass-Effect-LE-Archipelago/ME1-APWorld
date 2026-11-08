@@ -1,6 +1,7 @@
-from ..data import COORDINATES, EVENT_ACT1, EVENT_FEROS, EVENT_THERUM, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, MAKO, NO_RETURN_REGIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
+from ..data import COORDINATES, EVENT_ACT1, EXPERIENCE, EVENT_FEROS, EVENT_THERUM, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, MAKO, NO_RETURN_REGIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
 from BaseClasses import Item, ItemClassification, LocationProgressType
 from ..options import options_presets
+from ..items import GEAR_MAX
 from ..squad_talk import TALK_GATES
 from . import MassEffectLE1TestBase
 
@@ -237,8 +238,9 @@ class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
 
 
 class TestGearDraw(MassEffectLE1TestBase):
-    options = {"fragments_total": 1, "fragments_required": 1, "upgrade_count": 2, "codexsanity": "off", "journalsanity": "off", "containersanity": "off",
-               "aid_stations": False, "shop_slots": 0}
+    options = {"fragments_total": 1, "fragments_required": 1, "useful_share": 100, "upgrade_weight": 0, "experience_weight": 0,
+               "codexsanity": "off", "journalsanity": "off",
+               "containersanity": "off", "aid_stations": False, "shop_slots": 0}
 
     def test_gear_fills_the_free_room_with_distinct_lines_and_a_spectre(self) -> None:
         gear = [item.name for item in self.multiworld.itempool if item.name in GEAR_BY_NAME]
@@ -246,9 +248,6 @@ class TestGearDraw(MassEffectLE1TestBase):
         self.assertEqual(len(gear), self.world.gear_total)
         self.assertGreater(len(gear), 0)
         self.assertTrue(any(GEAR_BY_NAME[name].spectre for name in gear))
-        upgrades = len(self.get_items_by_name(UPGRADE))
-        filler = sum(1 for item in self.multiworld.itempool if item.name in FILLER)
-        self.assertEqual(upgrades, min(2, upgrades + filler))  # upgrades take room left after gear, before filler
         self.assertEqual(self.world.fill_slot_data()["gear_total"], len(gear))
 
     def test_categories_are_spread_before_any_repeats(self) -> None:
@@ -257,16 +256,34 @@ class TestGearDraw(MassEffectLE1TestBase):
         self.assertEqual(len(categories), len(set(categories)))  # fewer slots than the 12 categories here
 
 
-class TestNoGear(MassEffectLE1TestBase):
-    options = {"gear_pool": 0, "upgrade_count": 0}
+class TestNoUsefulItems(MassEffectLE1TestBase):
+    options = {"useful_share": 0}
 
-    def test_no_gear_or_upgrades(self) -> None:
-        self.assertFalse(any(item.name in GEAR_BY_NAME or item.name == UPGRADE for item in self.multiworld.itempool))
+    def test_only_progression_and_filler(self) -> None:
+        own = [item for item in self.multiworld.itempool if item.player == self.player]
+        self.assertFalse(any(item.useful for item in own))
         self.assertEqual(self.world.gear_total, 0)
 
 
+class TestZeroWeightsGiveFiller(MassEffectLE1TestBase):
+    options = {"gear_weight": 0, "upgrade_weight": 0, "experience_weight": 0}
+
+    def test_no_useful_items(self) -> None:
+        self.assertFalse(any(item.useful for item in self.multiworld.itempool if item.player == self.player))
+
+
+class TestGearOnly(MassEffectLE1TestBase):
+    options = {"useful_share": 100, "upgrade_weight": 0, "experience_weight": 0}
+
+    def test_gear_caps_and_nothing_else_is_useful(self) -> None:
+        names = [item.name for item in self.multiworld.itempool if item.player == self.player]
+        self.assertEqual(names.count(UPGRADE) + names.count(EXPERIENCE), 0)
+        self.assertLessEqual(self.world.gear_total, GEAR_MAX)
+        self.assertEqual(len(set(name for name in names if name in GEAR_BY_NAME)), self.world.gear_total)
+
+
 class TestGearSpread(MassEffectLE1TestBase):
-    options = {"gear_pool": 70}
+    options = {"useful_share": 10, "upgrade_weight": 0, "experience_weight": 0}  # about 64 lines: under 12 x 6
 
     def test_round_robin_keeps_categories_within_one(self) -> None:
         counts: dict[str, int] = {}
@@ -347,6 +364,22 @@ class TestKeepLocks(MassEffectLE1TestBase):
     def test_locked_ones_are_left_out(self) -> None:
         self.assertFalse(any(n in LOCATIONS and LOCATIONS[n].locked for n in
                              (loc.name for loc in self.multiworld.get_locations(self.player))))
+
+
+class TestDefaultItemPool(MassEffectLE1TestBase):
+    def test_weighted_useful_share_and_credit_heavy_filler(self):
+        own = [item for item in self.multiworld.itempool if item.player == self.player]
+        useful = [item.name for item in own if item.useful]
+        free = len(useful) + sum(1 for item in own if not item.useful and not item.advancement)
+        self.assertAlmostEqual(len(useful) / free, 0.55, delta=0.15)  # excluded slots also hold filler
+        gear = sum(1 for name in useful if name in GEAR_BY_NAME)
+        upgrades, experience = useful.count(UPGRADE), useful.count(EXPERIENCE)
+        self.assertEqual(gear + upgrades + experience, len(useful))
+        self.assertGreater(gear, upgrades)  # weights 50 / 25 / 25
+        self.assertGreater(gear, experience)
+        self.assertGreater(min(upgrades, experience), 0)
+        filler = [item.name for item in own if item.name in FILLER]
+        self.assertGreater(filler.count("Credits"), len(filler) // 2)
 
 
 class TestJournalsanity(MassEffectLE1TestBase):

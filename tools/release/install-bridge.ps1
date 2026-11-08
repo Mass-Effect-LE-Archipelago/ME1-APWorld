@@ -1,5 +1,5 @@
-# Installs the Archipelago bridge for Mass Effect 1 (LE): copies LE1APBridge.asi and LE1APBridge.checks.tsv from the
-# ASI folder next to this script into <game>\Game\ME1\Binaries\Win64\ASI, replacing older LE1APBridge*.asi files.
+# Installs the Archipelago bridge for Mass Effect 1 (LE): copies LE1APBridge.asi, LE1APBridge.checks.tsv and LE1APExtras.asi
+# from the ASI folder next to this script into <game>\Game\ME1\Binaries\Win64\ASI, replacing older LE1APBridge*.asi files.
 # Usage: right-click > Run with PowerShell, or:  powershell -ExecutionPolicy Bypass -File install-bridge.ps1 -GamePath "D:\Games\Mass Effect Legendary Edition"
 param([string]$GamePath)
 $ErrorActionPreference = 'Stop'
@@ -37,5 +37,6 @@ New-Item -ItemType Directory -Force -Path $asiDir | Out-Null
 Get-ChildItem -LiteralPath $asiDir -Filter 'LE1APBridge*.asi' | Remove-Item -Force
 Copy-Item -LiteralPath (Join-Path $source 'LE1APBridge.asi') -Destination $asiDir -Force
 Copy-Item -LiteralPath (Join-Path $source 'LE1APBridge.checks.tsv') -Destination $asiDir -Force
+Copy-Item -LiteralPath (Join-Path $source 'LE1APExtras.asi') -Destination $asiDir -Force
 Write-Host "Bridge installed to $asiDir" -ForegroundColor Green
 if (-not $GamePath) { Read-Host 'Press Enter to close' }

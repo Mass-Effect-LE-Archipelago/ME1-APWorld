@@ -55,12 +55,13 @@ lists **Mass Effect LE1 Client**.
 
 ### The bridge
 
-The bridge (`LE1APBridge.asi`) lets the client read and write the game's plot state and hand over items. Unzip
+The bridge (`LE1APBridge.asi`) lets the client read and write the game's plot state and hand over items;
+`LE1APExtras.asi` next to it reads the squad level and grants Experience items. Unzip
 `ArchipelagoME1-bridge-<version>.zip` first, then:
 
 - Right-click `install-bridge.ps1` > *Run with PowerShell*. It finds the game in the usual Steam and EA folders; if it
   does not, run it from a PowerShell window with `-GamePath "<folder that contains Game\ME1>"`.
-- Or copy both files from the `ASI` folder into `<Mass Effect Legendary Edition>\Game\ME1\Binaries\Win64\ASI\` by
+- Or copy the three files from the `ASI` folder into `<Mass Effect Legendary Edition>\Game\ME1\Binaries\Win64\ASI\` by
   hand (delete any older `LE1APBridge*.asi` there).
 
 ## 3. Recommended

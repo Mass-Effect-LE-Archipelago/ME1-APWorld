@@ -25,7 +25,7 @@ def me1_payload(release: pathlib.Path, dest: pathlib.Path) -> None:
     shutil.copy(release / "mass_effect_le1.apworld", dest / "mass_effect_le1.apworld")
     (dest / "ASI").mkdir()
     with zipfile.ZipFile(release / f"ArchipelagoME1-bridge-{version}.zip") as z:
-        for name in ("LE1APBridge.asi", "LE1APBridge.checks.tsv"):
+        for name in ("LE1APBridge.asi", "LE1APBridge.checks.tsv", "LE1APExtras.asi"):
             (dest / "ASI" / name).write_bytes(z.read(f"ArchipelagoME1-bridge-{version}/ASI/{name}"))
     with zipfile.ZipFile(release / f"ArchipelagoME1-mod-{version}.zip") as z:
         z.extractall(dest)

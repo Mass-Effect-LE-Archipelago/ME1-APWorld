@@ -10,7 +10,8 @@ Noveria, Virmire, Asteroid X57) stay locked until their coordinates are found. S
 story sends a check, and they join your squad when their item arrives (Kaidan and Ashley can instead join at the
 Citadel as in the original game). Ilos opens once Virmire is done and enough Prothean Beacon
 Fragments are collected. Weapons, armor, bio-amps, omni-tools and upgrades from every manufacturer arrive as items,
-and their level climbs from I to X over the seed. Credits, omni-gel, medi-gel and grenades are filler.
+and their level climbs from I to X over the seed. Experience items give the squad XP sized like a quest reward at its
+level. Filler is mostly credits, also scaled to the squad level, with some omni-gel, medi-gel and grenades.
 
 Decryption locks on containers can be removed, and Wrex always listens to reason on Virmire (Charm and Intimidate are
 always available in the standoff).

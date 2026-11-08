@@ -53,9 +53,11 @@ Open an [issue](../../issues) and include:
 - `worlds/mass_effect_le1/`: the Archipelago world (logic, items, locations, options) and the client.
 - `mod/`: the game mod (`DLC_MOD_ArchipelagoME1`); `tools/le1mod/` applies this repo's patches to it.
 - `tools/le1apbridge/`: the bridge (`LE1APBridge.asi`, built) and its checks table.
+- `tools/le1apextras/`: LE1APExtras, a small ASI next to the bridge (squad level, Experience items): source, build
+  script and the built `.asi`.
 - `tools/release/`: the release packaging script and the bridge installer.
 - `tools/setup/`: the source of Mass Effect AP Setup, the setup app.
-- `vendor/`: Archipelago and LegendaryExplorer as pinned submodules.
+- `vendor/`: Archipelago, LegendaryExplorer and LExASIs (with LExSDKv2, for LE1APExtras) as pinned submodules.
 
 ## Development
 

@@ -23,6 +23,7 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 WORLD = os.path.join(REPO, "worlds", "mass_effect_le1")
 MOD = os.path.join(REPO, "mod")
 BRIDGE = os.path.join(REPO, "tools", "le1apbridge")
+EXTRAS = os.path.join(REPO, "tools", "le1apextras")
 AP = os.path.join(REPO, "vendor", "Archipelago")
 YAML = "Mass Effect Legendary Edition 1.yaml"
 MOD_FOLDER = "DLC_MOD_ArchipelagoME1"
@@ -236,6 +237,7 @@ def main(version: str) -> None:
     os.makedirs(os.path.join(tmp, "ASI"))
     for name in ("LE1APBridge.asi", "LE1APBridge.checks.tsv"):
         shutil.copyfile(os.path.join(BRIDGE, name), os.path.join(tmp, "ASI", name))
+    shutil.copyfile(os.path.join(EXTRAS, "LE1APExtras.asi"), os.path.join(tmp, "ASI", "LE1APExtras.asi"))
     shutil.copyfile(os.path.join(REPO, "tools", "release", "install-bridge.ps1"), os.path.join(tmp, "install-bridge.ps1"))
     zip_dir(tmp, os.path.join(out, f"ArchipelagoME1-bridge-{version}.zip"), f"ArchipelagoME1-bridge-{version}")
     shutil.rmtree(tmp)
