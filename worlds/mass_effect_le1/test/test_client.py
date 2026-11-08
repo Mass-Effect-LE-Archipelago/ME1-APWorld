@@ -5,6 +5,8 @@ import unittest
 
 from ..client import (
     SHOP_TRANSITIONS,
+    VIRMIRE_TRANSMISSION_TRANSITION,
+    sync_virmire_open,
     BridgeConnection,
     BridgeProtocolError,
     BuildMismatchError,
@@ -560,6 +562,20 @@ class TestSquadAndIlos(unittest.TestCase):
         bridge = FakeBridge(bools={3941: True, TWO_SQUADMATES_PLOT_BOOL: True})  # back to one (an older save)
         self.assertTrue(sync_two_squadmates(bridge, bridge))
         self.assertEqual(bridge.bool_writes, [(TWO_SQUADMATES_PLOT_BOOL, False)])
+
+    def test_virmire_transmission_runs_once_the_coordinates_arrive(self):
+        cases = [
+            ("no coordinates", {20004: False}, False),
+            ("coordinates", {20004: True}, True),
+            ("already open (the game's own transmission)", {20004: True, 4104: True}, False),
+            ("virmire done", {20004: True, 2509: True}, False),
+        ]
+        for name, bools, runs in cases:
+            with self.subTest(name):
+                bridge = FakeBridge(bools=bools)
+                self.assertEqual(sync_virmire_open(bridge), runs)
+                self.assertEqual(getattr(bridge, "transitions", []), [VIRMIRE_TRANSMISSION_TRANSITION] if runs else [])
+                self.assertEqual(bridge.bool_writes, [])
 
     def test_ilos_gate_does_not_rewrite_when_open(self):
         bridge = FakeBridge(bools={2509: True, ILOS_OPEN_PLOT_BOOL: True})

@@ -24,6 +24,8 @@ Patches (squadmates join only through Archipelago items):
   client sets the in-party bool when the item arrives (CONDITIONAL_SWAPS, CONVERSATION_PATCHES).
 - The Look (PlotManagerAutoAPME1.pcc, the Council's Spectre induction in each language): mod transition 20103 sets
   bool 20103, and the induction runs it right after the asari Councilor's look (BOOL_TRANSITIONS, TRANSITION_NODES).
+- Virmire transmission (PlotManagerAutoAPME1.pcc): mod transition 20104 does what the Council's Virmire transmission
+  does (opens Virmire, starts its quest and journal entry); the client runs it when the coordinates arrive.
 """
 from __future__ import annotations
 
@@ -315,9 +317,54 @@ def patch_conversations(cooked: str, mod_cooked: str, dll: str) -> dict[str, int
 
 
 MOD_TRANSITIONS_PACKAGE = "PlotManagerAutoAPME1.pcc"
+VANILLA_TRANSITIONS = ("BIOC_Materials.pcc", "PlotManagerAuto.StateTransitionMap")  # the game's map
 THE_LOOK = 20103  # transition and plot bool: the Citadel: The Look check
+VIRMIRE_TRANSMISSION = 20104  # the client runs it once the Virmire coordinates arrive
 # Mod transitions that set a plot bool of the same number: transition -> bool.
 BOOL_TRANSITIONS = {THE_LOOK: THE_LOOK}
+# Mod transitions that run the elements of game transitions, in order: transition -> game transitions.
+COPIED_TRANSITIONS = {
+    # The Council's Virmire transmission (nor20_virmire_open_dlg): Virmire_Open, the Virmire quest and its journal
+    # entry (Begin_Plot), Salarians_STG, Joker_gave_Virmire_message. The game plays it after enough missions are
+    # done, which an Archipelago seed doesn't line up with the Virmire coordinates.
+    VIRMIRE_TRANSMISSION: (2302, 3552, 4885, 3667),
+}
+
+
+def mod_transition_elements(cooked: str, dll: str) -> dict[int, list[bytes]]:
+    """Each mod transition's elements: BOOL_TRANSITIONS, and COPIED_TRANSITIONS from the game's transition map."""
+    package, export_name = VANILLA_TRANSITIONS
+    pkg = le1pkg.read(os.path.join(cooked, package), dll)
+    export = pkg.find("BioStateEventMap", export_name)
+    game = transitions.transitions_elements(pkg.image[export.offset:export.offset + export.size], 4 + 8)
+    wanted = {t: [transitions.bool_element(b)] for t, b in BOOL_TRANSITIONS.items()}
+    for transition, sources in COPIED_TRANSITIONS.items():
+        wanted[transition] = [element for source in sources for element in game[source]]
+    return wanted
+
+
+def add_mod_transitions(path: str, wanted: dict[int, list[bytes]], dll: str) -> list[int]:
+    """Add the `wanted` transitions missing from the mod's StateTransitionMap; returns the transitions added."""
+    pkg = le1pkg.read(path, dll)
+    export = pkg.find("BioStateEventMap", "StateTransitionMap")
+    data = bytes(pkg.image[export.offset:export.offset + export.size])
+    start = 4 + 8  # net index, empty property list
+    present = transitions.transitions_elements(data, start)
+    for transition, elements in wanted.items():
+        if transition in present and present[transition] != elements:
+            raise SystemExit(f"{path}: transition {transition} runs other elements than this build adds")
+    added = [t for t in wanted if t not in present]
+    for transition in added:
+        data = transitions.add_transition(data, start, transition, wanted[transition])
+    if added:
+        le1pkg.write_image(pkg, le1pkg.relayout(pkg, [], {export.index: data}), path, dll)
+        check = le1pkg.read(path, dll)
+        written = check.find("BioStateEventMap", "StateTransitionMap")
+        if bytes(check.image[written.offset:written.offset + written.size]) != data:
+            raise SystemExit(f"{path}: StateTransitionMap does not read back")
+    return added
+
+
 # Conversation nodes that run a mod transition: package (each language) -> the conversation and its (node list,
 # index, transition). Each node runs no transition in the game.
 TRANSITION_NODES = {
@@ -326,25 +373,6 @@ TRANSITION_NODES = {
     "BIOA_STA70_02council_DSG": ("sta90_council_spectre_induction_D.sta90_council_spectre_induction_dlg", [
         ("m_EntryList", 23, THE_LOOK)]),
 }
-
-
-def add_mod_transitions(path: str, dll: str) -> list[int]:
-    """Add BOOL_TRANSITIONS missing from the mod's StateTransitionMap; returns the transitions added."""
-    pkg = le1pkg.read(path, dll)
-    export = pkg.find("BioStateEventMap", "StateTransitionMap")
-    data = bytes(pkg.image[export.offset:export.offset + export.size])
-    start = 4 + 8  # net index, empty property list
-    present = set(transitions.transition_ids(data, start))
-    added = [t for t in BOOL_TRANSITIONS if t not in present]
-    for transition in added:
-        data = transitions.add_bool_transition(data, start, transition, BOOL_TRANSITIONS[transition])
-    if added:
-        le1pkg.write_image(pkg, le1pkg.relayout(pkg, [], {export.index: data}), path, dll)
-        check = le1pkg.read(path, dll)
-        written = check.find("BioStateEventMap", "StateTransitionMap")
-        if bytes(check.image[written.offset:written.offset + written.size]) != data:
-            raise SystemExit(f"{path}: StateTransitionMap does not read back")
-    return added
 
 
 def patch_transition_nodes(cooked: str, mod_cooked: str, dll: str) -> dict[str, int]:
@@ -411,7 +439,7 @@ def main(game: str, base: str | None = None) -> None:
     print(f"{CONDITIONALS_PACKAGE}: story recruitment conditionals changed: {changed or 'none (already patched)'}")
     for name, count in patch_conversations(cooked, mod_cooked, dll).items():
         print(f"{name}: {count} conversation nodes changed")
-    added = add_mod_transitions(os.path.join(mod_cooked, MOD_TRANSITIONS_PACKAGE), dll)
+    added = add_mod_transitions(os.path.join(mod_cooked, MOD_TRANSITIONS_PACKAGE), mod_transition_elements(cooked, dll), dll)
     print(f"{MOD_TRANSITIONS_PACKAGE}: transitions added: {added or 'none (already there)'}")
     for name, count in patch_transition_nodes(cooked, mod_cooked, dll).items():
         print(f"{name}: {count} conversation nodes now run a mod transition")
