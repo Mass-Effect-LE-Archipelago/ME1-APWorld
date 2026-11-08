@@ -83,12 +83,10 @@ class TestUnchartedGates(MassEffectLE1TestBase):
     def test_feros_planets_need_feros_complete(self) -> None:
         self.collect_event(EVENT_ACT1)
         self.assertFalse(self.can_reach_location("Chasca: Aid Station 1"))
-        self.assertFalse(self.can_reach_location("UNC: Derelict Freighter: Started"))
         self.assertFalse(self.can_reach_location("Investigate Samples: Completed"))
         self.collect_event(EVENT_FEROS)
         self.assertTrue(self.can_reach_location("Investigate Samples: Completed"))
         self.assertTrue(self.can_reach_location("Chasca: Aid Station 1"))
-        self.assertTrue(self.can_reach_location("UNC: Derelict Freighter: Started"))
 
     def test_noveria_planets_need_noveria_complete(self) -> None:
         names = ("Altahe: Aid Station 1", "Unidentified Space Facility: Aid Station 1", "UNC: Listening Post Alpha: Started")
@@ -374,6 +372,21 @@ class TestJournalsanity(MassEffectLE1TestBase):
             self.assertFalse(self.can_reach_location(name), name)
         self.collect_by_name("Liara T'Soni")
         for name in names:
+            self.assertTrue(self.can_reach_location(name), name)
+
+    def test_squadmate_line_quests_need_a_squadmate(self) -> None:
+        freighter = ("UNC: Derelict Freighter: Started", "UNC: Derelict Freighter: Completed")
+        theta = ("UNC: Listening Post Theta: Started", "UNC: Listening Post Theta: Completed")
+        self.collect_all_but(list(SQUAD))
+        for name in freighter + theta:
+            self.assertFalse(self.can_reach_location(name), name)
+        self.collect_by_name("Tali'Zorah nar Rayya")  # no Listening Post Theta line
+        for name in freighter:
+            self.assertTrue(self.can_reach_location(name), name)
+        for name in theta:
+            self.assertFalse(self.can_reach_location(name), name)
+        self.collect_by_name("Garrus Vakarian")
+        for name in theta:
             self.assertTrue(self.can_reach_location(name), name)
 
 

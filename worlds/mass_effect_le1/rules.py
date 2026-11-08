@@ -21,6 +21,14 @@ NEEDS_TWO_SQUADMATES = frozenset({
     "Citadel: Jahleed's Fears: Started", "Citadel: Jahleed's Fears: Completed",
     "Citadel: Rita's Sister", "Citadel: Rita's Sister: Started", "Citadel: Rita's Sister: Completed",
 })
+# Quests whose setting line is only spoken by a squadmate in the party (one line variant per squadmate).
+NEEDS_ANY_SQUADMATE = {
+    "UNC: Derelict Freighter: Started": HasFromList(*data.SQUAD),  # bool 4843, BIOA_FRE31 sp116_triggers_dlg
+    "UNC: Derelict Freighter: Completed": HasFromList(*data.SQUAD),
+    # bool 6255, BIOA_UNC24 sp106_trig01_supplies_dlg: no line for Tali
+    "UNC: Listening Post Theta: Started": HasFromList(*(s for s in data.SQUAD if s != "Tali'Zorah nar Rayya")),
+    "UNC: Listening Post Theta: Completed": HasFromList(*(s for s in data.SQUAD if s != "Tali'Zorah nar Rayya")),
+}
 UNCHARTED_LANDINGS = HAS_ACT1 & HAS_MAKO  # the Uncharted Worlds entrance (regions.ENTRANCES)
 MISSIONS_DONE = (data.EVENT_THERUM, data.EVENT_FEROS, data.EVENT_NOVERIA)  # what squad_talk.TalkGate.missions counts
 UNCHARTED_GATES = {  # landing conditions of gated uncharted planets (uncharted.py)
@@ -44,6 +52,8 @@ def set_rules(world: MassEffectLE1World) -> None:
             rule = Has(loc.squad) if rule is None else rule & Has(loc.squad)
         if (needed := NEEDS_SQUADMATE.get(name)) is not None:
             rule = Has(needed) if rule is None else rule & Has(needed)
+        if (any_squad := NEEDS_ANY_SQUADMATE.get(name)) is not None:
+            rule = any_squad if rule is None else rule & any_squad
         if name in NEEDS_TWO_SQUADMATES or uncharted.location_needs_two_squadmates(name):
             rule = TWO_SQUADMATES if rule is None else rule & TWO_SQUADMATES
         if (gate := uncharted.location_gate(name)) is not None:
