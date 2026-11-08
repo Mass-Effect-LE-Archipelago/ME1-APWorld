@@ -72,11 +72,23 @@ Set up Archipelago's environment once (Python 3.11 or newer): `python -m venv ve
 
 - Tests: `python tools/test_world.py`.
 - Game mod patches: `python tools/le1mod/build_mod.py <LE1 game folder>` (see `tools/le1mod/README.md`).
-- Release: `python tools/release/build_release.py <version>` writes the apworld, the YAML template, the mod zip, the
-  bridge zip and `SHA256SUMS` to `build/release-<version>/`, after checking that the packaged apworld generates.
 - Setup app: `python tools/setup/package.py <app version>`, then `python tools/setup/test_setup.py --exe <its exe>` (see
   `tools/setup/README.md`; in WSL use `python3`).
 - LE1APExtras: `python tools/le1apextras/build.py` (see `tools/le1apextras/README.md`).
+
+### Making a release
+
+Releases are published on the fork (the `fork` remote), from the release branch. In WSL use `python3`.
+
+1. Bump the versions and commit: `world_version` in `worlds/mass_effect_le1/archipelago.json` and
+   `tools/setup/options-me1.json`, the status line at the top of this README, and, when the mod changed,
+   `MOD_VERSION` in `worlds/mass_effect_le1/client.py` (and the mod version in `test/test_client.py`). For a new
+   setup app, `<Version>` in `tools/setup/APSetup.csproj`.
+2. `python tools/release/build_release.py <version>` writes `build/release-<version>/`.
+3. `python tools/setup/package.py <app version>`, then `python tools/setup/test_setup.py --exe
+   "release/MassEffectAPSetup-<app version>/Mass Effect AP Setup.exe"`.
+4. Write `build/release-<version>/RELEASE_NOTES.md` (the release page's text).
+5. `python tools/release/publish.py --dry-run` to see the steps, then `python tools/release/publish.py`. It zips the setup app, writes `SHA256SUMS`, pushes the branch, opens and merges the pull request into `main`, tags the merge commit `v<version>`, creates the pre-release with the notes and uploads the assets, then prints the links. Run it again after a failure: it skips what is done.
 
 ## Credits
 
