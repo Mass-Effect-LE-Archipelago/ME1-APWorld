@@ -3,7 +3,8 @@
 usage: python tools/release/build_release.py <version>
 Release assets, each uploaded on its own (the release notes link the setup guide, which is not packaged):
   mass_effect_le1.apworld, the YAML template, ArchipelagoME1-mod-<version>.zip (ME3Tweaks Mod Manager import:
-  moddesc.ini + DLC_MOD_ArchipelagoME1), ArchipelagoME1-bridge-<version>.zip (ASI/ with the bridge and checks table,
+  moddesc.ini + DLC_MOD_ArchipelagoME1 + BASEGAME: the skipped travel videos and the patched Engine.pcc),
+  ArchipelagoME1-bridge-<version>.zip (ASI/ with the bridge and checks table,
   install-bridge.ps1), options-me1.json (the option schema the launcher's Options page reads), SHA256SUMS.
 Everything is read from the repo: the world (worlds/), the game mod (mod/), the bridge (tools/le1apbridge/) and
 Archipelago (the vendor/Archipelago submodule, with its .venv set up). Nothing under the game folder is touched.
@@ -59,8 +60,8 @@ destdirs = {mod}
 
 [BASEGAME]
 moddir = BASEGAME
-newfiles = Movies
-replacefiles = BIOGame\\Movies\\
+newfiles = Movies;CookedPCConsole
+replacefiles = BIOGame\\Movies\\;BIOGame\\CookedPCConsole\\
 gamedirectorystructure = true
 altfiles = ({movie_options})
 """
@@ -230,6 +231,8 @@ def main(version: str) -> None:
     # Build identity (R13): bridge v12+ reads this file (MODVER) and the client refuses a mod older than it needs.
     with open(os.path.join(tmp, MOD_FOLDER, MOD_VERSION_FILE), "w", encoding="ascii", newline="\n") as f:
         f.write(version + "\n")
+    # Basegame packages the mod replaces (tools/le1mod/build_mod.py writes them): Engine.pcc's galaxy-map table.
+    shutil.copytree(os.path.join(MOD, "BASEGAME", "CookedPCConsole"), os.path.join(tmp, "BASEGAME", "CookedPCConsole"))
     movies = os.path.join(tmp, "BASEGAME", "Movies")
     os.makedirs(movies)
     for movie, _group, _noun in SKIPPED_MOVIES:

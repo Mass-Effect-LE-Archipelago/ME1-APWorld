@@ -265,6 +265,17 @@ sealed class Installer
             else Place(target, Path.Combine(Payload, Profile.ModFolder, "BASEGAME", "Movies", movie));
         }
 
+        // Basegame packages the mod replaces (ME1: Engine.pcc, for the galaxy-map landing gates); one an earlier
+        // payload replaced and this one does not is put back.
+        var cooked = Path.Combine(BioGame, "CookedPCConsole");
+        var basegame = Path.Combine(Payload, Profile.ModFolder, "BASEGAME", "CookedPCConsole");
+        string[] shipped = Directory.Exists(basegame) ? Directory.GetFiles(basegame) : [];
+        foreach (var entry in _manifest.Entries.ToList())
+            if (string.Equals(Path.GetDirectoryName(entry.Target), Path.GetFullPath(cooked), StringComparison.OrdinalIgnoreCase)
+                && !shipped.Any(f => string.Equals(Path.GetFileName(f), Path.GetFileName(entry.Target), StringComparison.OrdinalIgnoreCase)))
+                Revert(entry.Target);
+        foreach (var file in shipped) Place(Path.Combine(cooked, Path.GetFileName(file)), file);
+
         WriteToc();
         SaveManifest();
         Log.Add("Mod installed.");

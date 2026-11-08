@@ -51,26 +51,49 @@ def retarget_bool_sets(data: bytearray, start: int, bools: set[int], target: int
     return changed
 
 
-def transition_ids(data: bytes | bytearray, start: int) -> list[int]:
-    """The transition ids of the map that begins at `start`, in order."""
+def transitions_elements(data: bytes | bytearray, start: int) -> dict[int, list[bytes]]:
+    """Each transition of the map that begins at `start` (and runs to the end of `data`): its elements, raw."""
     count = struct.unpack_from("<i", data, start)[0]
-    o, ids = start + 4, []
+    o, found = start + 4, {}
     for _ in range(count):
         transition, _version, elements = struct.unpack_from("<3i", data, o)
-        ids.append(transition)
         o += 12
+        raw = []
         for _ in range(elements):
             kind = struct.unpack_from("<i", data, o)[0]
-            o += 4 * (8 + struct.unpack_from("<i", data, o + 28)[0] if kind == SUBSTATE else FIXED_INTS[kind])
+            if kind == SUBSTATE:
+                size = 4 * (8 + struct.unpack_from("<i", data, o + 28)[0])
+            elif kind in FIXED_INTS:
+                size = 4 * FIXED_INTS[kind]
+            else:
+                raise ValueError(f"transition {transition}: unknown element type {kind} at {o}")
+            raw.append(bytes(data[o:o + size]))
+            o += size
+        found[transition] = raw
     if o != len(data):
         raise ValueError(f"map ends at {o}, data at {len(data)}")
-    return ids
+    return found
 
 
-def add_bool_transition(data: bytes | bytearray, start: int, transition: int, bool_index: int) -> bytes:
-    """The map (`data` from `start` to its end) with transition `transition` added: it sets `bool_index` to true."""
+def transition_ids(data: bytes | bytearray, start: int) -> list[int]:
+    """The transition ids of the map that begins at `start`, in order."""
+    return list(transitions_elements(data, start))
+
+
+def bool_element(bool_index: int) -> bytes:
+    """An element that sets `bool_index` to true."""
+    return struct.pack("<5i", BOOL, 0, bool_index, 1, 0)
+
+
+def add_transition(data: bytes | bytearray, start: int, transition: int, elements: list[bytes]) -> bytes:
+    """The map (`data` from `start` to its end) with transition `transition` added, running `elements`."""
     if transition in transition_ids(data, start):
         raise ValueError(f"transition {transition} already exists")
     count = struct.unpack_from("<i", data, start)[0]
-    event = struct.pack("<3i", transition, 0, 1) + struct.pack("<5i", BOOL, 0, bool_index, 1, 0)
+    event = struct.pack("<3i", transition, 0, len(elements)) + b"".join(elements)
     return bytes(data[:start]) + struct.pack("<i", count + 1) + bytes(data[start + 4:]) + event
+
+
+def add_bool_transition(data: bytes | bytearray, start: int, transition: int, bool_index: int) -> bytes:
+    """The map with transition `transition` added: it sets `bool_index` to true."""
+    return add_transition(data, start, transition, [bool_element(bool_index)])

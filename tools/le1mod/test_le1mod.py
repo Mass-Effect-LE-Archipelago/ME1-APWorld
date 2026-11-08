@@ -108,6 +108,14 @@ class TestAddTransition(unittest.TestCase):
             transitions.add_bool_transition(out, start, 20103, 20103)
 
 
+class TestStaleGates(unittest.TestCase):
+    def test_gate_flags_outside_the_gated_rows_are_stale(self) -> None:
+        planets = {1: planet(1), 2: {**planet(1), "UsableConditional": 0, "UsableFunction": build_mod.MAKO},
+                   3: {**planet(1), "UsablePlanetConditional": 0, "UsablePlanetFunction": 4681}}
+        self.assertEqual(build_mod.stale_gates(planets, {1}), [2])
+        self.assertEqual(build_mod.stale_gates(planets, {1, 2}), [])
+
+
 class TestStoryRecruitment(unittest.TestCase):
     def test_swaps_each_int_const_once_and_is_idempotent(self) -> None:
         code = b"\x1b\x00" + b"\x1d" + struct.pack("<i", 3941) + b"\x27" + b"\x1d" + struct.pack("<i", 3942) + b"\x16"

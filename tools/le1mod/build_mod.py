@@ -15,9 +15,10 @@ Patches (squadmates join only through Archipelago items):
 - shop stock (BIOG_2DA_APME1_Treasure_X.pcc, Treasure_Tables_TreasureTables_part_1): a merchant's stock draws `drops`
   entries from its treasure table, and the mod's Archipelago Item entries are extra entries in those tables, so each
   such table draws all its entries (vanilla and Archipelago); every shop slot is then stocked.
-- landing gates (BIOG_2DA_APME1_GalaxyMap_X.pcc, GalaxyMap_Planet_part_1): planets with a section that needs two
-  squadmates (Agebinium) are landable only while the client's two-squadmates bool is set; planets whose landing puts
-  the Mako in reach are usable only while the client's Mako bool is set.
+- landing gates (mod/BASEGAME/CookedPCConsole/Engine.pcc, the game's GalaxyMap_Planet; the mod's DLC table keeps no
+  vanilla row numbers): planets with a section that needs two squadmates (Agebinium) are landable only while the
+  client's two-squadmates bool is set; planets whose landing puts the Mako in reach are usable only while the client's
+  Mako bool is set.
 - story recruitment (PlotManager.pcc conditionals, and Citadel conversations in each language): checks that read
   Garrus's, Wrex's or Tali's in-party bool as "recruited in the story" read the story's own flag instead, since the
   client sets the in-party bool when the item arrives (CONDITIONAL_SWAPS, CONVERSATION_PATCHES).
@@ -125,6 +126,8 @@ def patch_shop_draws(path: str, engine: str, dll: str) -> dict[int, dict[str, ob
 
 
 PLANET_PACKAGE = "BIOG_2DA_APME1_GalaxyMap_X.pcc"
+ENGINE_PACKAGE = "Engine.pcc"  # holds the game's galaxy-map tables; the mod ships a patched copy (BASEGAME)
+BASEGAME_COOKED = os.path.join(REPO, "mod", "BASEGAME", "CookedPCConsole")
 VANILLA_PLANETS = "BIOG_2DA_GalaxyMap_X.GalaxyMap_Planet"  # in Engine.pcc
 VANILLA_MAPS = "BIOG_2DA_GalaxyMap_X.GalaxyMap_Map"
 TWO_SQUADMATES = 20194  # set by the client while two squadmates are in the party
@@ -135,11 +138,14 @@ PLANET_GATES = {89: TWO_SQUADMATES}  # Agebinium
 # Their planets are usable only while MAKO is set (Usable; UsablePlanet keeps the vanilla or coordinate gate).
 MAKO_LEVELS = frozenset({"BIOA_ICE00", "BIOA_WAR00", "BIOA_JUG00", "BIOA_LAV00", "BIOA_PRC2"})
 MAKO_LEVEL_PREFIX = "BIOA_UNC"
+GATE_BOOLS = {MAKO, TWO_SQUADMATES}
 
 
 def planet_gate_rows(planets: dict[int, dict[str, object]], maps: dict[int, dict[str, object]]
                      ) -> dict[int, dict[str, object]]:
-    """The GalaxyMap_Planet rows to override: each planet in PLANET_GATES or on a Mako level, from its vanilla row."""
+    """The gated GalaxyMap_Planet rows: each planet in PLANET_GATES or on a Mako level, from its vanilla row, with its
+    gates. A Conditional of 0 makes its Function a plot bool and its Parameter the value it must have (the mod's Eden
+    Prime row: bool 20000, 1)."""
     mako_maps = {number for number, row in maps.items()
                  if row.get("Map") in MAKO_LEVELS or str(row.get("Map", "")).startswith(MAKO_LEVEL_PREFIX)}
     rows: dict[int, dict[str, object]] = {}
@@ -149,23 +155,62 @@ def planet_gate_rows(planets: dict[int, dict[str, object]], maps: dict[int, dict
             row.update(UsablePlanetConditional=0, UsablePlanetFunction=PLANET_GATES[number], UsablePlanetParameter=1)
         if planet.get("Map") in mako_maps:
             row.update(UsableConditional=0, UsableFunction=MAKO, UsableParameter=1)
-        if row != planet:
+        if number in PLANET_GATES or planet.get("Map") in mako_maps:
             rows[number] = row
     return rows
 
 
-def patch_planet_gates(path: str, engine: str, dll: str) -> dict[int, dict[str, object]]:
-    """Override rows for the planets planet_gate_rows picks. A Conditional of 0 makes its Function a plot bool and its
-    Parameter the value it must have (the mod's Eden Prime row: bool 20000, 1). Returns the rows."""
-    vanilla_pkg = le1pkg.read(engine, dll)
-    columns, vanilla = twoda.read(vanilla_pkg, vanilla_pkg.find("Bio2DANumberedRows", VANILLA_PLANETS))
-    _, maps = twoda.read(vanilla_pkg, vanilla_pkg.find("Bio2DANumberedRows", VANILLA_MAPS))
-    mod_pkg = le1pkg.read(path, dll)
-    if twoda.read(mod_pkg, mod_pkg.find("Bio2DANumberedRows", "GalaxyMap_Planet_part_1"))[0] != columns:
-        raise SystemExit(f"{path}: GalaxyMap_Planet_part_1 columns differ from the game's")
-    rows = planet_gate_rows(vanilla, maps)
-    override_rows(path, "GalaxyMap_Planet_part_1", rows, dll)
+def stale_gates(planets: dict[int, dict[str, object]], gated: set[int]) -> list[int]:
+    """Rows outside `gated` whose Usable or UsablePlanet is one of GATE_BOOLS: a copy of Engine.pcc patched by an
+    older gate set, not the game's own file."""
+    return sorted(n for n, row in planets.items() if n not in gated and any(
+        row.get(f"{column}Conditional") == 0 and row.get(f"{column}Function") in GATE_BOOLS
+        for column in ("Usable", "UsablePlanet")))
+
+
+def patch_engine(cooked: str, dll: str) -> dict[int, dict[str, object]]:
+    """Write BASEGAME_COOKED/Engine.pcc: the game's, with planet_gate_rows in its GalaxyMap_Planet (same-size cell
+    changes). Galaxy-map rows can't be overridden from the mod's DLC table: a row with a vanilla row's number makes
+    landing on that planet load the wrong level. Returns the gated rows."""
+    pkg = le1pkg.read(os.path.join(cooked, ENGINE_PACKAGE), dll)
+    export = pkg.find("Bio2DANumberedRows", VANILLA_PLANETS)
+    columns, planets = twoda.read(pkg, export)
+    _, maps = twoda.read(pkg, pkg.find("Bio2DANumberedRows", VANILLA_MAPS))
+    rows = planet_gate_rows(planets, maps)
+    stale = stale_gates(planets, set(rows))
+    if stale:
+        raise SystemExit(f"{cooked}: {ENGINE_PACKAGE} has gates on rows {stale}: restore the game's own file")
+    net_index = struct.unpack_from("<i", pkg.image, export.offset)[0]
+    data = twoda.build(pkg, net_index, columns, {**planets, **rows})
+    if len(data) != export.size:
+        raise SystemExit(f"{ENGINE_PACKAGE}: GalaxyMap_Planet changes size ({export.size} -> {len(data)})")
+    pkg.image[export.offset:export.offset + export.size] = data
+    os.makedirs(BASEGAME_COOKED, exist_ok=True)
+    path = os.path.join(BASEGAME_COOKED, ENGINE_PACKAGE)
+    le1pkg.write(pkg, path, dll)
+    if le1pkg.read(path, dll).image != pkg.image:
+        raise SystemExit(f"{path}: written package does not match the patched image")
     return rows
+
+
+def drop_vanilla_planet_rows(path: str, engine: str, dll: str) -> list[int]:
+    """Remove rows from the mod's GalaxyMap_Planet_part_1 that reuse a vanilla row number; returns their numbers."""
+    vanilla_pkg = le1pkg.read(engine, dll)
+    _, vanilla = twoda.read(vanilla_pkg, vanilla_pkg.find("Bio2DANumberedRows", VANILLA_PLANETS))
+    pkg = le1pkg.read(path, dll)
+    export = pkg.find("Bio2DANumberedRows", "GalaxyMap_Planet_part_1")
+    columns, table = twoda.read(pkg, export)
+    dropped = sorted(n for n in table if n in vanilla)
+    if dropped:
+        for n in dropped:
+            del table[n]
+        net_index = struct.unpack_from("<i", pkg.image, export.offset)[0]
+        le1pkg.write_image(pkg, le1pkg.relayout(pkg, [], {export.index: twoda.build(pkg, net_index, columns, table)}),
+                           path, dll)
+        check = le1pkg.read(path, dll)
+        if twoda.read(check, check.find("Bio2DANumberedRows", "GalaxyMap_Planet_part_1"))[1] != table:
+            raise SystemExit(f"{path}: GalaxyMap_Planet_part_1 does not read back")
+    return dropped
 
 
 GARRUS_RECRUITED = 20101  # the mod's recruit transitions set these where vanilla set the in-party bool
@@ -356,8 +401,10 @@ def main(game: str, base: str | None = None) -> None:
         print(f"{package}: {len(changed)} in-party writes retargeted (transitions {ids})")
     rows = patch_shop_draws(os.path.join(mod_cooked, SHOP_PACKAGE), os.path.join(cooked, "Engine.pcc"), dll)
     print(f"{SHOP_PACKAGE}: shop draws " + ", ".join(f"{r['Name']} {r['drops']}" for r in rows.values()))
-    rows = patch_planet_gates(os.path.join(mod_cooked, PLANET_PACKAGE), os.path.join(cooked, "Engine.pcc"), dll)
-    print(f"{PLANET_PACKAGE}: landing gates on rows " + ", ".join(
+    dropped = drop_vanilla_planet_rows(os.path.join(mod_cooked, PLANET_PACKAGE), os.path.join(cooked, ENGINE_PACKAGE), dll)
+    print(f"{PLANET_PACKAGE}: vanilla planet rows removed: {dropped or 'none'}")
+    rows = patch_engine(cooked, dll)
+    print(f"BASEGAME {ENGINE_PACKAGE}: landing gates on rows " + ", ".join(
         f"{number} (map {r['Map']}: usable {r['UsableFunction']}, land {r['UsablePlanetFunction']})"
         for number, r in rows.items()))
     changed = patch_conditionals(os.path.join(mod_cooked, CONDITIONALS_PACKAGE), dll)
