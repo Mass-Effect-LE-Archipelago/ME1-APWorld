@@ -106,17 +106,18 @@ def newest_mtime(folder: pathlib.Path) -> float:
     return max(p.stat().st_mtime for p in folder.rglob("*") if p.is_file())
 
 
-def setup_zip(app: str, dry: bool) -> pathlib.Path:
-    """Step 1: release/MassEffectAPSetup-<app>-ME1.zip holding the package.py folder's files at its root."""
+def setup_zip(app: str, dry: bool) -> tuple[pathlib.Path, bool]:
+    """Step 1: release/MassEffectAPSetup-<app>-ME1.zip holding the package.py folder's files at its root; returns it and
+    whether it is current (False only in a dry run that would rebuild it)."""
     folder = REPO / "release" / f"MassEffectAPSetup-{app}"
     archive = REPO / "release" / f"MassEffectAPSetup-{app}-ME1.zip"
     if not folder.is_dir():
         if archive.exists():
-            return archive
+            return archive, True
         raise SystemExit(f"no {folder.relative_to(REPO)}: run python tools/setup/package.py {app}")
     if archive.exists() and archive.stat().st_mtime >= newest_mtime(folder):
         print(f"1. {archive.name}: up to date")
-        return archive
+        return archive, True
     print(f"1. {archive.name}: zip {folder.relative_to(REPO)}")
     if not dry:
         tmp = archive.with_suffix(".zip.tmp")
@@ -125,7 +126,7 @@ def setup_zip(app: str, dry: bool) -> pathlib.Path:
                 if path.is_file():
                     z.write(path, path.relative_to(folder).as_posix())
         tmp.replace(archive)
-    return archive
+    return archive, not dry
 
 
 def check_setup_payload(archive: pathlib.Path, out: pathlib.Path) -> None:
@@ -136,7 +137,7 @@ def check_setup_payload(archive: pathlib.Path, out: pathlib.Path) -> None:
         raise SystemExit(f"{archive.name} holds a different apworld than {out.relative_to(REPO)}: run package.py again")
 
 
-def release_folder(version: str, archive: pathlib.Path, dry: bool) -> list[pathlib.Path]:
+def release_folder(version: str, archive: pathlib.Path, current: bool, dry: bool) -> list[pathlib.Path]:
     """Step 2: the setup zip and SHA256SUMS in build/release-<version>/; returns every asset to upload."""
     out = REPO / "build" / f"release-{version}"
     names = ["mass_effect_le1.apworld", "Mass Effect Legendary Edition 1.yaml", f"ArchipelagoME1-mod-{version}.zip",
@@ -146,10 +147,10 @@ def release_folder(version: str, archive: pathlib.Path, dry: bool) -> list[pathl
         raise SystemExit(f"missing from {out.relative_to(REPO)}: {', '.join(missing)} (run build_release.py {version})")
     if not (out / "RELEASE_NOTES.md").is_file():
         raise SystemExit(f"write {out.relative_to(REPO)}/RELEASE_NOTES.md first")
-    if not dry or archive.exists():
+    if current:
         check_setup_payload(archive, out)
     copy = out / archive.name
-    if copy.exists() and sha256(copy) == sha256(archive):
+    if current and copy.exists() and sha256(copy) == sha256(archive):
         print(f"2. {copy.name} in {out.relative_to(REPO)}: up to date")
     else:
         print(f"2. copy {archive.name} into {out.relative_to(REPO)}")
@@ -255,8 +256,8 @@ def main() -> int:
     version, app = versions()
     print(f"release {version}, setup app {app}, to {slug()}")
     github = GitHub(slug(), None if args.dry_run else token())
-    archive = setup_zip(app, args.dry_run)
-    assets = release_folder(version, archive, args.dry_run)
+    archive, current = setup_zip(app, args.dry_run)
+    assets = release_folder(version, archive, current, args.dry_run)
     commit, pull = merge(github, version, args.dry_run)
     name = tag(version, commit, args.dry_run)
     link = publish(github, version, name, assets, args.dry_run)
