@@ -13,6 +13,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_mod  # noqa: E402
+import conversation  # noqa: E402
 import le1pkg  # noqa: E402
 import transitions  # noqa: E402
 import twoda  # noqa: E402
@@ -71,6 +72,63 @@ class TestTwoDA(unittest.TestCase):
         _, read_rows = twoda.read(pkg, le1pkg.Export(1, 0, 0, "table", len(data), 0, 0))
         self.assertEqual(read_rows, rows)
         self.assertIsInstance(read_rows[90]["Bump"], int)
+
+
+def planet(map_number: int, usable_planet: int = 974) -> dict[str, object]:
+    return {"Map": map_number, "UsableConditional": 1, "UsableFunction": 974, "UsableParameter": 1,
+            "UsablePlanetConditional": 1, "UsablePlanetFunction": usable_planet, "UsablePlanetParameter": 1}
+
+
+class TestPlanetGates(unittest.TestCase):
+    MAPS = {1: {"Map": "BIOA_STA00"}, 3: {"Map": "BIOA_WAR00"}, 53: {"Map": "BIOA_UNC53"}, 80: {"Map": "BIOA_UNC80"},
+            101: {"Map": "BIOA_FRE31"}, 400: {"Map": "BIOA_PRC2"}}
+
+    def test_mako_levels_need_the_mako_and_keep_their_landing_gate(self) -> None:
+        planets = {1: planet(1, 836), 77: planet(3, 981), 89: planet(53), 163: planet(80, 2507), 169: planet(101, 2507),
+                   6207: planet(400), 7: planet(-1)}
+        rows = build_mod.planet_gate_rows(planets, self.MAPS)
+        self.assertEqual(sorted(rows), [77, 89, 163, 6207])  # not the Citadel, a freighter or a planet without a level
+        for number in (77, 163, 6207):
+            self.assertEqual((rows[number]["UsableConditional"], rows[number]["UsableFunction"], rows[number]["UsableParameter"]),
+                             (0, build_mod.MAKO, 1))
+            self.assertEqual(rows[number]["UsablePlanetFunction"], planets[number]["UsablePlanetFunction"])
+        self.assertEqual((rows[89]["UsableFunction"], rows[89]["UsablePlanetConditional"], rows[89]["UsablePlanetFunction"],
+                          rows[89]["UsablePlanetParameter"]), (build_mod.MAKO, 0, build_mod.TWO_SQUADMATES, 1))
+
+
+class TestStoryRecruitment(unittest.TestCase):
+    def test_swaps_each_int_const_once_and_is_idempotent(self) -> None:
+        code = b"\x1b\x00" + b"\x1d" + struct.pack("<i", 3941) + b"\x27" + b"\x1d" + struct.pack("<i", 3942) + b"\x16"
+        swaps = {3941: 20101, 3942: 20102}
+        out = build_mod.swap_int_consts(code, swaps)
+        self.assertEqual(len(out), len(code))
+        self.assertEqual(out, code.replace(struct.pack("<i", 3941), struct.pack("<i", 20101))
+                                  .replace(struct.pack("<i", 3942), struct.pack("<i", 20102)))
+        self.assertIsNone(build_mod.swap_int_consts(out, swaps))
+        with self.assertRaises(ValueError):
+            build_mod.swap_int_consts(code + b"\x1d" + struct.pack("<i", 3941), swaps)
+
+    def test_node_condition_and_bool_rewrite(self) -> None:
+        names = ["None", "m_EntryList", "ArrayProperty", "nConditionalFunc", "IntProperty", "bFireConditional",
+                 "BoolProperty", "nConditionalParam", "nStateTransition"]
+
+        def prop(name: str, kind: str, value: bytes) -> bytes:
+            size = 0 if kind == "BoolProperty" else len(value)
+            return struct.pack("<iiiiii", names.index(name), 0, names.index(kind), 0, size, 0) + value
+
+        def node(func: int, fire: bool, param: int) -> bytes:
+            return (prop("nStateTransition", "IntProperty", struct.pack("<i", -1))
+                    + prop("nConditionalFunc", "IntProperty", struct.pack("<i", func))
+                    + prop("bFireConditional", "BoolProperty", bytes([fire]))
+                    + prop("nConditionalParam", "IntProperty", struct.pack("<i", param)) + struct.pack("<ii", 0, 0))
+        body = struct.pack("<i", 2) + node(-1, False, -1) + node(418, True, 4)
+        data = bytearray(struct.pack("<i", 0) + prop("m_EntryList", "ArrayProperty", body) + struct.pack("<ii", 0, 0))
+        cond = conversation.node_condition(names, data, "m_EntryList", 1)
+        self.assertEqual((cond.func, cond.fire, cond.param), (418, True, 4))
+        conversation.set_bool_condition(data, cond, 20102, True)
+        again = conversation.node_condition(names, data, "m_EntryList", 1)
+        self.assertEqual((again.func, again.fire, again.param), (20102, False, 1))
+        self.assertEqual(conversation.node_condition(names, data, "m_EntryList", 0).func, -1)
 
 
 @unittest.skipUnless(os.environ.get("LE1_GAME"), "set LE1_GAME to the LE1 game folder")

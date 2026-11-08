@@ -33,7 +33,8 @@ class RequiredSquadSize(Range):
 class MakoShuffled(Toggle):
     """Shuffle the M35 Mako into the item pool. When off, the Mako is available from the start.
 
-    Most mission worlds have a Mako section, so turning this on gates nearly everything behind one item."""
+    Until it arrives you can't land on Therum, Feros, Noveria, Virmire, Asteroid X57 or any uncharted planet, so turning
+    this on gates nearly everything behind one item. Derelict freighters are boarded on foot."""
 
     display_name = "Shuffle the Mako"
 
