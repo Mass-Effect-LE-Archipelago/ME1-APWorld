@@ -208,9 +208,9 @@ class TestFragmentClamping(MassEffectLE1TestBase):
                "aid_stations": False, "shop_slots": 0}
 
     def test_fragments_clamped_to_location_room(self) -> None:
-        # 23 locations - 1 on Ilos (no own progression) - 6 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 5
-        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 5)
-        self.assertEqual(self.world.fragments_required, 5)
+        # 24 locations - 1 on Ilos (no own progression) - 6 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 6
+        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 6)
+        self.assertEqual(self.world.fragments_required, 6)
 
 
 class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
@@ -233,8 +233,8 @@ class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
         self.assertTrue(self.can_reach_region(Region.VIRMIRE.value))
 
     def test_freed_slots_go_to_fragments_room(self) -> None:
-        # 23 locations - 1 on Ilos (no own progression) - 4 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 7
-        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 7)
+        # 24 locations - 1 on Ilos (no own progression) - 4 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 8
+        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 8)
 
 
 class TestGearDraw(MassEffectLE1TestBase):

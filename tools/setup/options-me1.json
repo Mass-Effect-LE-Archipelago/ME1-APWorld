@@ -1,6 +1,6 @@
 {
  "game": "Mass Effect Legendary Edition 1",
- "world_version": "0.2.8",
+ "world_version": "0.2.9",
  "minimum_ap_version": "0.6.8",
  "groups": [
   {
@@ -41,7 +41,7 @@
     {
      "key": "mako_shuffled",
      "display": "Shuffle the Mako",
-     "doc": "Shuffle the M35 Mako into the item pool. When off, the Mako is available from the start.\n\nMost mission worlds have a Mako section, so turning this on gates nearly everything behind one item.",
+     "doc": "Shuffle the M35 Mako into the item pool. When off, the Mako is available from the start.\n\nUntil it arrives you can't land on Therum, Feros, Noveria, Virmire, Asteroid X57 or any uncharted planet, so turning\nthis on gates nearly everything behind one item. Derelict freighters are boarded on foot.",
      "type": "toggle",
      "default": false
     },

@@ -92,7 +92,7 @@ def me1(exe: pathlib.Path, release: pathlib.Path, base: pathlib.Path) -> list[st
     write(win64 / "bink2w64_original.dll", b"RAD bink")
     write(win64 / "ASI" / "LE1AutoloadEnabler-v13.asi", b"autoload")
     write(win64 / "ASI" / "LE1APBridge-v10.asi", b"old bridge")   # an older bridge: removed on install, back on uninstall
-    for name in ("SFXGame.pcc", "BIOA_NOR00.pcc", "Startup_INT.pcc"):
+    for name in ("SFXGame.pcc", "BIOA_NOR00.pcc", "Startup_INT.pcc", "Engine.pcc"):  # Engine.pcc: replaced, then put back
         write(me / "BioGame" / "CookedPCConsole" / name, name.encode() * 50)
     write(me / "BioGame" / "Movies" / "GLO_01_Relay.bik", b"relay video" * 100)
     write(me / "BioGame" / "Movies" / "UCW_Loading_Flyby.bik", b"flyby video" * 100)
@@ -118,6 +118,12 @@ def me1(exe: pathlib.Path, release: pathlib.Path, base: pathlib.Path) -> list[st
             key = f"BioGame\\DLC\\DLC_MOD_ArchipelagoME1\\CookedPCConsole\\{f.name}"
             run.check(entries.get(key) == f.stat().st_size, f"TOC lists {f.name}")
         run.check(entries.get("BioGame\\CookedPCConsole\\SFXGame.pcc") == len("SFXGame.pcc") * 50, "TOC keeps basegame files")
+        replaced = list((p / "ArchipelagoME1" / "BASEGAME" / "CookedPCConsole").glob("*.pcc"))
+        run.check(bool(replaced), "payload replaces basegame packages")
+        for f in replaced:
+            installed_file = me / "BioGame" / "CookedPCConsole" / f.name
+            run.check(installed_file.read_bytes() == f.read_bytes(), f"basegame {f.name} replaced")
+            run.check(entries.get(f"BioGame\\CookedPCConsole\\{f.name}") == f.stat().st_size, f"TOC lists the new {f.name}")
         run.check(entries.get("BioGame\\PCConsoleTOC.bin") == (me / "BioGame" / "PCConsoleTOC.bin").stat().st_size, "TOC lists itself")
         run.check("ready to launch" in run.cli("--check"), "--check ready after install")
 

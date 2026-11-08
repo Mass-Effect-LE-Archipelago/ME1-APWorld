@@ -6,9 +6,12 @@ tracker (journal, galaxy-map markers) are new in 0.2 and not yet confirmed in ga
 ## What does randomization do to this game?
 
 Shepard starts as a Spectre aboard the Normandy with no squad. Galaxy-map destinations (Eden Prime, Therum, Feros,
-Noveria, Virmire, Asteroid X57) stay locked until their coordinates are found. Squadmates are items: recruiting one in the
+Noveria, Virmire, Asteroid X57) stay locked until their coordinates are found. With the Mako shuffled, Therum, Feros,
+Noveria, Virmire, Asteroid X57 and the uncharted planets can't be landed on until the M35 Mako arrives (derelict
+freighters can still be boarded). Squadmates are items: recruiting one in the
 story sends a check, and they join your squad when their item arrives (Kaidan and Ashley can instead join at the
-Citadel as in the original game). Ilos opens once Virmire is done and enough Prothean Beacon
+Citadel as in the original game). The Council's Virmire transmission (the Virmire quest and journal entry) comes with
+the Virmire coordinates. Ilos opens once Virmire is done and enough Prothean Beacon
 Fragments are collected. Weapons, armor, bio-amps, omni-tools and upgrades from every manufacturer arrive as items,
 and their level climbs from I to X over the seed. Experience items give the squad XP sized like a quest reward at its
 level. Filler is mostly credits, also scaled to the squad level, with some omni-gel, medi-gel and grenades.
@@ -56,7 +59,6 @@ Kaidan, Ashley and Wrex can die on Virmire, so codex pages only they give hold n
 can be there) and quests only they give hold filler only. The same goes for Joker's prologue pages, which are only
 there until you meet Udina on the Citadel, and for Chohe and Nonuel, whose star systems only appear after the 75%
 Paragon or Renegade transmission.
-Aid Stations cannot be used at full medi-gel: use a medi-gel first to send the check.
 
 Eden Prime, Therum, Virmire and Asteroid X57 close for good once finished, and Feros and Noveria close in part (afterwards
 only Zhu's Hope and Port Hanshan can be revisited). By default their containers hold no progression items: this game's

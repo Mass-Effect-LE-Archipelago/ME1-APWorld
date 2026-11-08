@@ -5,6 +5,8 @@ import unittest
 
 from ..client import (
     SHOP_TRANSITIONS,
+    VIRMIRE_TRANSMISSION_TRANSITION,
+    sync_virmire_open,
     BridgeConnection,
     BridgeProtocolError,
     BuildMismatchError,
@@ -89,7 +91,7 @@ class FakeBridge:
         self.transactions = []
         self.bridge_version = 13
         self.inventory_full = False  # v13: GIVE answers ERR full and the index stays
-        self.mod = "0.2.8"
+        self.mod = "0.2.9"
         self.bool_writes = []
         self.int_writes = []
         self.gives = []
@@ -561,6 +563,20 @@ class TestSquadAndIlos(unittest.TestCase):
         self.assertTrue(sync_two_squadmates(bridge, bridge))
         self.assertEqual(bridge.bool_writes, [(TWO_SQUADMATES_PLOT_BOOL, False)])
 
+    def test_virmire_transmission_runs_once_the_coordinates_arrive(self):
+        cases = [
+            ("no coordinates", {20004: False}, False),
+            ("coordinates", {20004: True}, True),
+            ("already open (the game's own transmission)", {20004: True, 4104: True}, False),
+            ("virmire done", {20004: True, 2509: True}, False),
+        ]
+        for name, bools, runs in cases:
+            with self.subTest(name):
+                bridge = FakeBridge(bools=bools)
+                self.assertEqual(sync_virmire_open(bridge), runs)
+                self.assertEqual(getattr(bridge, "transitions", []), [VIRMIRE_TRANSMISSION_TRANSITION] if runs else [])
+                self.assertEqual(bridge.bool_writes, [])
+
     def test_ilos_gate_does_not_rewrite_when_open(self):
         bridge = FakeBridge(bools={2509: True, ILOS_OPEN_PLOT_BOOL: True})
         self.assertFalse(sync_ilos_gate(bridge, [SimpleNamespace(item=FRAGMENT_ITEM_ID)], 1))
@@ -984,7 +1000,7 @@ class FakeGame:
     later, before the next request (possibly after `load` switched the save). `lost_replies` makes the next N TXNs run
     and then breaks the pipe before the reply."""
 
-    def __init__(self, save=None, *, version=13, mod="0.2.8"):
+    def __init__(self, save=None, *, version=13, mod="0.2.9"):
         self.save = save or FakeSave()
         self.version, self.mod = version, mod
         self.inventory_full = False  # v13: a GIVE answers ERR full and leaves the index

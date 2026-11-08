@@ -135,5 +135,5 @@ client), the LE2 bridge, the ME2 mod and its ASI loader. Please report problems 
 
 ## Uninstall
 
-With the setup app: **2. Install > Uninstall** puts back every file it changed. After a manual install: in Mod Manager, *Restore* the game (this also brings back the travel videos) (or delete `BioGame\DLC\DLC_MOD_ArchipelagoME1`), then delete `LE1APBridge*.asi`,
+With the setup app: **2. Install > Uninstall** puts back every file it changed. After a manual install: in Mod Manager, *Restore* the game (this also brings back the travel videos and the game's own `Engine.pcc`, which the mod replaces for its landing gates) (or delete `BioGame\DLC\DLC_MOD_ArchipelagoME1`), then delete `LE1APBridge*.asi`,
 `LE1APBridge.checks.tsv` and `LE1APExtras.asi` from `Game\ME1\Binaries\Win64\ASI\`.

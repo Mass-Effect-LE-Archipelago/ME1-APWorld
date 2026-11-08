@@ -24,8 +24,8 @@ import Utils
 from CommonClient import ClientCommandProcessor, CommonContext, get_base_parser, gui_enabled, handle_url_arg, server_loop
 from NetUtils import ClientStatus
 
-from .data import (EXPERIENCE, FRAGMENT, HUMAN_SQUAD, ID_BASE, ITEM_NAME_TO_ID, ITEMS, LOCATIONS, LOCATION_NAME_TO_ID,
-                   MAKO, SHOP_SLOTS_MAX, SHOPS, UPGRADE, Region, shop_bool)
+from .data import (COORDINATES, EXPERIENCE, FRAGMENT, HUMAN_SQUAD, ID_BASE, ITEM_NAME_TO_ID, ITEMS, LOCATIONS,
+                   LOCATION_NAME_TO_ID, MAKO, SHOP_SLOTS_MAX, SHOPS, UPGRADE, Region, shop_bool)
 from .gear import GEAR_LINES, UPGRADE_ROWS
 from .levelup import CREDIT_REWARDS, CREDIT_REWARDS_COLUMNS, XP_REWARDS, XP_REWARDS_COLUMNS
 from .tracker import (MARKER_AREAS, MARKER_IN_LOGIC_BASE, MARKER_LOCKED_BASE, Tracker, area_line, area_region,
@@ -45,7 +45,7 @@ NONCE_PLOT_INT = 2006  # bridge v12 NONCE: marks the save the client checks befo
 # Build identity (R13): the oldest bridge and mod this client works with. The bridge answers PING with its version; the
 # release writes the mod version into DLC_MOD_ArchipelagoME1\ArchipelagoME1.version, which the bridge reads (MODVER).
 BRIDGE_VERSION = 13  # v13: a GIVE into a full inventory answers ERR full and waits (v12 lost the item)
-MOD_VERSION = "0.2.8"
+MOD_VERSION = "0.2.9"
 # An unbound save is bound to the seed only if it has at most this many checks done (a fresh career): a save from
 # another seed or a vanilla save loaded by mistake would otherwise send its progress as checks. The open start alone
 # sets 6 (live 2026-10-26: the Started checks of Feros, Liara, Noveria, UNC Cerberus, Hostage and Rogue VI).
@@ -54,6 +54,8 @@ GOAL_PLOT_BOOL = 6530  # CH4 Final_Choice.Game_Complete: transition 5110 in the 
 VIRMIRE_DONE_PLOT_BOOL = 2509
 VIRMIRE_SURVIVOR_PLOT_BOOLS = (3827, 3828)  # set by the Virmire choice, which removes one of Kaidan and Ashley
 ILOS_OPEN_PLOT_BOOL = 4103  # D5: set by the client once the fragment gate (and D9) is met
+VIRMIRE_OPEN_PLOT_BOOL = 4104  # set by the Council's Virmire transmission (vanilla T2302)
+VIRMIRE_TRANSMISSION_TRANSITION = 20104  # the mod's copy of that transmission (tools/le1mod/build_mod.py)
 UNLOCK_CONTAINERS_PLOT_BOOL = 20190  # the bridge opens Decryption containers like plain ones while this is set
 INFINITE_SPRINT_PLOT_BOOL = 20191  # bridge v9+ (fixed in v11): sprinting never drains stamina while this is set
 TWO_SQUADMATES_PLOT_BOOL = 20194  # set while two squadmates are in the party: the mod's landing gate (Agebinium)
@@ -425,6 +427,7 @@ COORDINATE_ITEM_TO_PLOT_BOOL = {
     for item in ITEMS.values()
     if "Coordinates" in item.groups
 }
+VIRMIRE_COORDINATES_PLOT_BOOL = COORDINATE_ITEM_TO_PLOT_BOOL[ITEM_NAME_TO_ID[COORDINATES[Region.VIRMIRE]]]
 
 
 # R10: a squadmate is recruited (selectable) when its InParty bool is set.
@@ -650,6 +653,17 @@ def sync_ilos_gate(
         bridge.set_bool(ILOS_OPEN_PLOT_BOOL, True)
         return True
     return False
+
+
+def sync_virmire_open(bridge: ItemBridge) -> bool:
+    """Run the Council's Virmire transmission (open Virmire, start its quest and journal entry) once the Virmire
+    coordinates are in the save and Virmire is neither open nor done; True if it ran."""
+    if not bridge.get_bool(VIRMIRE_COORDINATES_PLOT_BOOL) or bridge.get_bool(VIRMIRE_OPEN_PLOT_BOOL):
+        return False
+    if bridge.get_bool(VIRMIRE_DONE_PLOT_BOOL):
+        return False
+    bridge.run_transition(VIRMIRE_TRANSMISSION_TRANSITION)
+    return True
 
 
 LOCATION_PREDICATES = {
@@ -1022,6 +1036,8 @@ class ME1Context(CommonContext):
             if sync_ilos_gate(self.bridge, items, self.fragments_required):
                 logger.info("Fragment gate met; Ilos opened")
                 self.notify("Ilos is open")
+            if sync_virmire_open(self.bridge):
+                logger.info("Virmire coordinates: the Council's Virmire transmission ran (quest and journal entry)")
             self._sync_journal(items)
             if not self.shop_labels_sent and self.locations_info:
                 self._send_shop_labels()
