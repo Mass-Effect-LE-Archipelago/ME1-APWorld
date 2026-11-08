@@ -6,10 +6,12 @@ tracker (journal, galaxy-map markers) are new in 0.2 and not yet confirmed in ga
 ## What does randomization do to this game?
 
 Shepard starts as a Spectre aboard the Normandy with no squad. Galaxy-map destinations (Eden Prime, Therum, Feros,
-Noveria, Virmire, Asteroid X57) stay locked until their coordinates are found. Squadmates are items (Kaidan and Ashley
-can instead join at the Citadel as in the original game). Ilos opens once Virmire is done and enough Prothean Beacon
+Noveria, Virmire, Asteroid X57) stay locked until their coordinates are found. Squadmates are items: recruiting one in the
+story sends a check, and they join your squad when their item arrives (Kaidan and Ashley can instead join at the
+Citadel as in the original game). Ilos opens once Virmire is done and enough Prothean Beacon
 Fragments are collected. Weapons, armor, bio-amps, omni-tools and upgrades from every manufacturer arrive as items,
-and their level climbs from I to X over the seed. Credits, omni-gel, medi-gel and grenades are filler.
+and their level climbs from I to X over the seed. Experience items give the squad XP sized like a quest reward at its
+level. Filler is mostly credits, also scaled to the squad level, with some omni-gel, medi-gel and grenades.
 
 Decryption locks on containers can be removed, and Wrex always listens to reason on Virmire (Charm and Intimidate are
 always available in the standoff).
@@ -47,9 +49,22 @@ Reach Ilos, follow Saren through the Conduit, and defeat Saren and Sovereign on 
   and whether it is progression; otherwise it shows as "Archipelago Item".
 
 Uncharted worlds, derelict freighters and side-assignment transmissions count as available after the Citadel's first
-act, with the Mako. Aid Stations cannot be used at full medi-gel: use a medi-gel first to send the check.
+act, with the Mako. Squadmates have new things to say on the Normandy after a finished mission or every third
+uncharted-world landing, so codex pages and quests from their later conversations count as available once you can land
+on uncharted worlds. Kaidan's and Ashley's conversations also wait for Therum, Feros or Noveria to be finished.
+Kaidan, Ashley and Wrex can die on Virmire, so codex pages only they give hold no progression items (this game's gear
+can be there) and quests only they give hold filler only. The same goes for Joker's prologue pages, which are only
+there until you meet Udina on the Citadel, and for Chohe and Nonuel, whose star systems only appear after the 75%
+Paragon or Renegade transmission.
+Aid Stations cannot be used at full medi-gel: use a medi-gel first to send the check.
 
-Therum and Virmire close for good once finished, so their containers hold filler by default (finished_mission_checks).
+Eden Prime, Therum, Virmire and Asteroid X57 close for good once finished, and Feros and Noveria close in part (afterwards
+only Zhu's Hope and Port Hanshan can be revisited). By default their containers hold no progression items: this game's
+gear, upgrades and filler, and other games' filler (finished_mission_checks). Leaving one behind can cost gear, never
+progress.
+Landing on Ilos starts the finale with no way back, so Ilos never holds this game's progression items (squadmates,
+coordinates, the Mako, fragments). It can still hold other games' items, and this game's gear unless ilos_useful_items
+is off.
 A shop fills its stock the first time you open it: connect the client before your first shop visit so it shows the
 right number of slots. Commander Rentola only sells on the Normandy for a short while after Virmire, so his slots hold
 filler only.

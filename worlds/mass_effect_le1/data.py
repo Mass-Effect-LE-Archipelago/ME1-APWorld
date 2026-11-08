@@ -41,6 +41,11 @@ class Region(str, Enum):
     UNCHARTED = "Uncharted Worlds"  # uncharted planets and derelict freighters: after Act 1, with the Mako
 
 
+# Landing on Ilos starts the finale with no way back: these regions never hold this world's progression items
+# (regions.no_return_item_allowed). Other games' items are fine there.
+NO_RETURN_REGIONS = (Region.ILOS, Region.FINAL_CITADEL)
+
+
 @dataclass(frozen=True)
 class ItemData:
     offset: int
@@ -61,7 +66,9 @@ COORDINATES = {
 FRAGMENT = "Prothean Beacon Fragment"
 MAKO = "M35 Mako"
 FILLER = ("Credits", "Omni-Gel", "Medi-Gel", "Grenades")
+FILLER_WEIGHTS = (70, 10, 10, 10)  # Credits scale with the squad level; the consumables cap out quickly
 UPGRADE = "Random Upgrade"
+EXPERIENCE = "Experience"  # squad XP, granted through LE1APExtras (tools/le1apextras)
 GEAR_OFFSET = 0x100
 
 _P = ItemClassification.progression
@@ -84,7 +91,8 @@ ITEMS: dict[str, ItemData] = {
     "Medi-Gel": ItemData(0x42, ItemClassification.filler, count=0),
     "Grenades": ItemData(0x43, ItemClassification.filler, count=0),
     UPGRADE: ItemData(0x44, ItemClassification.useful, count=0, groups=frozenset({"Gear"})),
-    # 0x100-0x3FF gear lines: count set by the gear_pool option
+    EXPERIENCE: ItemData(0x45, ItemClassification.useful, count=0),
+    # 0x100-0x3FF gear lines: how many is set by useful_share and gear_weight
     **{line.name: ItemData(GEAR_OFFSET + i, ItemClassification.useful, count=0, groups=frozenset({"Gear", line.category}))
        for i, line in enumerate(GEAR_LINES)},
 }
@@ -218,6 +226,7 @@ LOCATION_NAME_GROUPS["Shops"] = {name for name, data in LOCATIONS.items() if dat
 
 # Event locations: not in the ID tables, they hold locked event items.
 EVENT_ACT1 = "Citadel Act 1 Complete"  # Spectre status itself is set at game start (D8)
+EVENT_THERUM = "Therum Complete"  # bool 2506 Caleston_Done: squadmate conversations count it (squad_talk.py)
 EVENT_FEROS = "Feros Complete"  # bool 2507 Feros_Done: opens Nodacrux, Chasca, MSV Cornucopia (uncharted.py)
 EVENT_NOVERIA = "Noveria Complete"  # bool 2508 Noveria_Done: opens Altahe, Nepmos (uncharted.py)
 EVENT_VIRMIRE = "Virmire Complete"  # Ilos requires it (D9); bool 2509 Virmire_Done (sent in game, SCOPE P2-5)

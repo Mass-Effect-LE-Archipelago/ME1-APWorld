@@ -12,16 +12,18 @@ License: GPL-3.0 (`LICENSE`), because it is built with LegendaryExplorerCore. Th
 
 ## Build
 
-1. .NET 10 SDK on Windows.
-2. LegendaryExplorerCore source: clone https://github.com/ME3Tweaks/LegendaryExplorer at commit
-   `bd5ec550c5448e460af949c307c8d013e14f4a28` to `vendor/LegendaryExplorer` (next to `tools/`), or pass
-   `-p:LexCoreProject=<path to LegendaryExplorerCore.csproj>`.
-3. `dotnet build tools/setup/APSetup.csproj -c Release`, or `python tools/setup/package.py <version> --me1-release <release folder>`
-   for the self-contained single-file exe next to its `ME1\` payload.
+1. .NET 10 SDK on Windows. The scripts run on Windows, or in WSL with `python3` (they call the Windows `dotnet.exe` and
+   pass it Windows paths; the tests use Windows' temp folder).
+2. LegendaryExplorerCore source: the `vendor/LegendaryExplorer` submodule (`git submodule update --init`), pinned to
+   the commit the app is built with.
+3. `dotnet build tools/setup/APSetup.csproj -c Release`, or `python tools/setup/package.py <version>` for the
+   self-contained single-file exe next to its `ME1\` payload. The payload comes from the newest `build/release-<version>`
+   folder written by `tools/release/build_release.py` (or `--me1-release <folder>`). The ME2 payload is added only when
+   `--me2-release` and `--me2-loader` are given.
 
 ## Tests
 
-`python tools/setup/test_setup.py --me1-release <release folder>` installs into fake game and Archipelago folders in a
-temporary directory, checks the result, uninstalls, and requires every file to be byte-identical (SHA-256) afterwards.
+`python tools/setup/test_setup.py` installs into fake game and Archipelago folders in a temporary directory, checks the
+result, uninstalls, and requires every file to be byte-identical (SHA-256) afterwards.
 `options-me1.json` is exported from the world by `export_options.py`; the world test `test_setup_options.py` keeps it in
 sync.

@@ -8,7 +8,7 @@ Version 0.2 (beta test). Tested on the Steam release of Mass Effect Legendary Ed
 - [Archipelago](https://github.com/ArchipelagoMW/Archipelago/releases) 0.6.8 or newer.
 - [ME3Tweaks Mod Manager](https://me3tweaks.com/modmanager/), once, for its ASI Manager (the ASI loader and LE1
   Autoload Enabler). With the setup app you do not need it for anything else.
-- From the [latest release](https://github.com/Mass-Effect-LE-Archipelago/ME1-APWorld/releases/latest): either
+- From the [latest release](../../../../../releases/latest): either
   `MassEffectAPSetup-<version>-ME1.zip` (the setup app, recommended), or the four separate files for a manual install
   (see "Manual install").
 
@@ -25,7 +25,7 @@ tells you if they are missing.
    next to it). Pick **Mass Effect 1**.
 3. **1. Folders**: check the Mass Effect Legendary Edition and Archipelago folders (found automatically).
 4. **2. Install**: choose whether to skip the two galaxy-map travel videos, then **Install / Repair**. It installs the
-   world into Archipelago, the bridge into the game's ASI folder and the mod with the game's file table (no AutoTOC
+   world into Archipelago, the bridge (with LE1APExtras) into the game's ASI folder and the mod with the game's file table (no AutoTOC
    needed). Everything it replaces is backed up; **Uninstall** puts every file back as it was.
 5. **3. Options**: set your slot name and options (or a preset), then **Save to Archipelago Players**, or **Save +
    Generate seed** to generate right away (it uses every YAML in Archipelago's Players folder and opens the output
@@ -55,12 +55,13 @@ lists **Mass Effect LE1 Client**.
 
 ### The bridge
 
-The bridge (`LE1APBridge.asi`) lets the client read and write the game's plot state and hand over items. Unzip
+The bridge (`LE1APBridge.asi`) lets the client read and write the game's plot state and hand over items;
+`LE1APExtras.asi` next to it reads the squad level and grants Experience items. Unzip
 `ArchipelagoME1-bridge-<version>.zip` first, then:
 
 - Right-click `install-bridge.ps1` > *Run with PowerShell*. It finds the game in the usual Steam and EA folders; if it
   does not, run it from a PowerShell window with `-GamePath "<folder that contains Game\ME1>"`.
-- Or copy both files from the `ASI` folder into `<Mass Effect Legendary Edition>\Game\ME1\Binaries\Win64\ASI\` by
+- Or copy the three files from the `ASI` folder into `<Mass Effect Legendary Edition>\Game\ME1\Binaries\Win64\ASI\` by
   hand (delete any older `LE1APBridge*.asi` there).
 
 ## 3. Recommended
@@ -98,7 +99,12 @@ sent the next time it connects; items you receive while the game is closed arriv
 With the setup app: unzip the new version and click **Install / Repair** (close the Archipelago Launcher first).
 Manually: download the new apworld, mod zip and bridge zip. Replace the apworld, import and apply the new mod zip in Mod Manager,
 and run `install-bridge.ps1` from the new bridge zip. Install all three: from 0.2.4 the client checks the bridge (v13 from
-0.2.5) and the mod version and stops with a message naming what to update.
+0.2.5) and the mod version and stops with a message naming what to update. 0.2.8 needs the 0.2.8 mod, and its bridge zip
+adds `LE1APExtras.asi` (Experience items and level-scaled credits).
+
+From 0.2.8, `gear_pool` and `upgrade_count` are replaced by `useful_share` and the gear / upgrade / experience weights.
+An older YAML still generates (Archipelago warns about the old options and uses the defaults); make a new one in the
+Options Creator to set them.
 
 From 0.2.4 each save is bound to its seed and slot the first time the client connects to it, and the client refuses a
 save from another seed (it changes nothing in it). A career started before 0.2.4 is not bound yet: load its save,
@@ -114,6 +120,9 @@ visited have no slots); from 0.1.x, start a new career.
   the waiting items then arrive in order (from 0.2.5; nothing is lost).
 - **The client says the bridge or the mod is out of date**: install the bridge zip and the mod zip of the same release
   as the apworld (see Updating).
+- **"LE1APExtras: not installed or not running"** in the client: `LE1APExtras.asi` is missing from
+  `Game\ME1\Binaries\Win64\ASI\`. Experience items wait (nothing is lost) and credits are smaller until it is
+  installed: run `install-bridge.ps1` from the bridge zip, or Install / Repair in the setup app, and restart the game.
 
 ## Mass Effect 2 (experimental)
 
@@ -122,9 +131,9 @@ folders only, not in game with this app. To try it, download `MassEffectAPSetup-
 release, unzip it next to (or instead of) the ME1 zip, and pick Mass Effect 2. Its payload is the
 [ArchipelagoME2 0.2.2](https://github.com/Mass-Effect-LE-Archipelago/ME2-APWorld/releases/tag/v0.2.2) release: the ME2 apworld (with its
 client), the LE2 bridge, the ME2 mod and its ASI loader. Please report problems at
-https://github.com/Mass-Effect-LE-Archipelago/ME1-APWorld/issues. Mass Effect 3 is not supported yet.
+[the issues page](../../../../../issues). Mass Effect 3 is not supported yet.
 
 ## Uninstall
 
-With the setup app: **2. Install > Uninstall** puts back every file it changed. After a manual install: in Mod Manager, *Restore* the game (this also brings back the travel videos) (or delete `BioGame\DLC\DLC_MOD_ArchipelagoME1`), then delete `LE1APBridge*.asi`
-and `LE1APBridge.checks.tsv` from `Game\ME1\Binaries\Win64\ASI\`.
+With the setup app: **2. Install > Uninstall** puts back every file it changed. After a manual install: in Mod Manager, *Restore* the game (this also brings back the travel videos) (or delete `BioGame\DLC\DLC_MOD_ArchipelagoME1`), then delete `LE1APBridge*.asi`,
+`LE1APBridge.checks.tsv` and `LE1APExtras.asi` from `Game\ME1\Binaries\Win64\ASI\`.

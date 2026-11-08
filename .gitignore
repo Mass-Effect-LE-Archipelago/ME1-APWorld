@@ -4,3 +4,7 @@ __pycache__/
 .pytest_cache/
 *.apworld
 *.zip
+/build/
+/release/
+/tools/setup/bin/
+/tools/setup/obj/

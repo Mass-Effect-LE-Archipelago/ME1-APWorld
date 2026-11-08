@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
-from BaseClasses import ItemClassification, Location, LocationProgressType, Region
+from BaseClasses import Item, ItemClassification, Location, LocationProgressType, Region
 from rule_builder.options import OptionFilter
 from rule_builder.rules import Has, HasAll, HasFromList, Rule, True_
 from rule_builder.field_resolvers import FromOption, FromWorldAttr
+from worlds.generic.Rules import add_item_rule
 
-from . import data, uncharted
+from . import data, squad_talk, uncharted
+from .containers import CONTAINERS
 from .data import Region as R
 from .items import MassEffectLE1Item
 from .options import MakoShuffled, RequiredSquadSize
@@ -67,24 +70,121 @@ def location_included(world: MassEffectLE1World, loc: data.LocationData) -> bool
     return True
 
 
-# Therum and Virmire close once finished (GateOverride F1402/F699; their levels never check the done bools, so reopening
-# would replay the mission). Codex pages set only inside the Virmire mission (research/le1_codex_uses.tsv).
-CLOSING_MISSIONS = (R.THERUM, R.VIRMIRE)
+# Eden Prime, Therum, Virmire and Asteroid X57 close once finished (Therum and Virmire through GateOverride F1402/F699;
+# their levels never check the done bools, so reopening would replay the mission). Codex pages set only inside these
+# missions; a new career's achievement rewards (BIOA_NOR10_01_DS1 GAME_START) can also set some, which logic does not
+# count on.
+CLOSING_MISSIONS = (R.EDEN_PRIME, R.THERUM, R.VIRMIRE, R.ASTEROID_X57)
 MISSION_ONLY_CODEX = frozenset({
+    "Codex: Aliens: Non-Council Races: Geth",  # Eden Prime
+    'Codex: Weapons, Armor and Equipment: Kinetic Barriers ("Shields")',  # Eden Prime or the end of Therum
     "Codex: Aliens: Council Races: Salarians: Culture",
     "Codex: Aliens: Council Races: Salarians: Government",
     "Codex: Aliens: Council Races: Salarians: Military Doctrine",
 })
 
+# Feros and Noveria can be revisited once finished, but only partly. After the Thorian, Feros streams only Zhu's Hope
+# (BIOA_WAR00's PostThorian state, these chunks); after Benezia, the road to Peak 15 and Peak 15 itself are closed.
+FEROS_OPEN_CHUNKS = frozenset({
+    "BIOA_WAR20_00", "BIOA_WAR20_01", "BIOA_WAR20_02", "BIOA_WAR20_03", "BIOA_WAR20_03A", "BIOA_WAR20_03B",
+    "BIOA_WAR20_03E", "BIOA_WAR20_04", "BIOA_WAR20_04C", "BIOA_WAR20_05", "BIOA_WAR20_06", "BIOA_WAR20_07",
+    "BIOA_WAR20_08", "BIOA_WAR20_09", "BIOA_WAR20_10", "BIOA_WAR20_10A", "BIOA_WAR20_14",
+})
+NOVERIA_CLOSED_CHUNK = re.compile(r"BIOA_ICE(25|50|60)_")
+_PACKAGE_SUFFIX = re.compile(r"_(DSG|DS\d|PLC|ART|LAY|SND)$")
+
+
+def _container_chunks() -> dict[str, str]:
+    """Container, drop-slot and Aid Station location name -> its level chunk (package name without its suffix)."""
+    chunks = {}
+    for entry in CONTAINERS:
+        chunk = _PACKAGE_SUFFIX.sub("", entry.key.split(".", 1)[0].upper())
+        chunks[entry.name] = chunk
+        for roll in range(2, entry.drops + 1):
+            chunks[f"{entry.name} (Item {roll})"] = chunk
+    return chunks
+
+
+CONTAINER_CHUNKS = _container_chunks()
+
+
+def closed_after_mission(name: str, loc: data.LocationData) -> bool:
+    """A Feros or Noveria container in a part of the planet that is closed once its mission is finished."""
+    chunk = CONTAINER_CHUNKS.get(name)
+    if chunk is None:
+        return False
+    if loc.region is R.FEROS:
+        return chunk not in FEROS_OPEN_CHUNKS
+    return loc.region is R.NOVERIA and NOVERIA_CLOSED_CHUNK.match(chunk) is not None
+
+
+# Joker's prologue conversation (nor10_joker_dlg) plays only while int 13 is 10101 and bool 3214 is unset, which the
+# open start leaves in place until Udina's office on the first Citadel visit sets 3214.
+MISSABLE_CODEX = frozenset({
+    "Codex: Humanity and the Systems Alliance: Systems Alliance",
+    "Codex: Humanity and the Systems Alliance: Timeline",
+})
+
+
+def closes_with_mission(name: str, loc: data.LocationData) -> bool:
+    """Left behind for good when its mission ends: a closing mission's containers, shop slots and mission-only codex
+    pages, and containers in the closed parts of Feros and Noveria."""
+    if loc.region in CLOSING_MISSIONS:
+        return loc.container is not None or loc.shop_slot is not None or name in MISSION_ONLY_CODEX
+    return closed_after_mission(name, loc)
+
+
+def missable_codex(name: str, loc: data.LocationData) -> bool:
+    """A codex page that can be missed for good: Joker's prologue pages (MISSABLE_CODEX), and squadmate pages that need
+    a dialogue or romance choice or the squadmate alive after Virmire (squad_talk.TalkGate.choice)."""
+    if name in MISSABLE_CODEX:
+        return True
+    gate = squad_talk.TALK_GATES.get(name)
+    return gate is not None and gate.choice and loc.codex is not None
+
+
+def no_progression_rule(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
+    """Gets the no_progression_item_allowed rule: a missable codex page, a check on a planet only a morality
+    transmission opens, or a check that closes with its mission under finished_mission_checks no_progression."""
+    if location_excluded(world, name, loc):
+        return False
+    return missable_codex(name, loc) or uncharted.location_needs_morality(name) or (
+        world.options.finished_mission_checks == world.options.finished_mission_checks.option_no_progression
+        and closes_with_mission(name, loc))
+
+
+def no_progression_item_allowed(world: MassEffectLE1World, item: Item) -> bool:
+    """Whether a no_progression_rule location may hold this item: this world's items but its progression, and other
+    players' filler."""
+    if item.player == world.player:
+        return not item.advancement
+    return item.excludable
+
+
+def holds_no_progression(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
+    """Never holds this world's progression: filler only (location_excluded) or no_progression_rule."""
+    return location_excluded(world, name, loc) or no_progression_rule(world, name, loc)
+
 
 def location_excluded(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
-    """Filler only: a story choice can skip it, its planet's landing condition is unverified, or it is left behind
-    for good when its mission ends (finished_mission_checks: filler_only)."""
+    """Filler only: a story choice can skip it, a squadmate quest needs a choice (squad_talk.TalkGate.choice), its
+    planet's landing condition is unverified, or it closes with its mission (finished_mission_checks: filler_only)."""
     if loc.excluded or uncharted.location_unverified(name):
         return True
+    if (gate := squad_talk.TALK_GATES.get(name)) is not None and gate.choice and loc.codex is None:
+        return True
     return (world.options.finished_mission_checks == world.options.finished_mission_checks.option_filler_only
-            and loc.region in CLOSING_MISSIONS
-            and (loc.container is not None or loc.shop_slot is not None or name in MISSION_ONLY_CODEX))
+            and closes_with_mission(name, loc))
+
+
+def no_return_item_allowed(world: MassEffectLE1World, item: Item) -> bool:
+    """Whether a location in data.NO_RETURN_REGIONS may hold this item: any other player's item, this world's filler,
+    and this world's useful items when ilos_useful_items is on; never this world's progression."""
+    if item.player != world.player:
+        return True
+    if item.advancement:
+        return False
+    return bool(world.options.ilos_useful_items) or not item.useful
 
 
 def create_regions(world: MassEffectLE1World) -> None:
@@ -105,6 +205,10 @@ def create_regions(world: MassEffectLE1World) -> None:
         location = MassEffectLE1Location(world.player, name, data.LOCATION_NAME_TO_ID[name], regions[loc.region])
         if location_excluded(world, name, loc):
             location.progress_type = LocationProgressType.EXCLUDED
+        if loc.region in data.NO_RETURN_REGIONS:
+            add_item_rule(location, lambda item: no_return_item_allowed(world, item))
+        elif no_progression_rule(world, name, loc):
+            add_item_rule(location, lambda item: no_progression_item_allowed(world, item))
         regions[loc.region].locations.append(location)
 
     _add_event(world, regions[R.CITADEL], data.EVENT_ACT1)
@@ -112,6 +216,7 @@ def create_regions(world: MassEffectLE1World) -> None:
         # Same names as the items, so HAS_SQUAD and VIRMIRE_PAIR count them; no ID, so the client never sets InParty.
         for name in data.HUMAN_SQUAD:
             _add_event(world, regions[R.CITADEL], name, f"Citadel: {name} Joins (arrival)")
+    _add_event(world, regions[R.THERUM], data.EVENT_THERUM)
     _add_event(world, regions[R.FEROS], data.EVENT_FEROS)
     _add_event(world, regions[R.NOVERIA], data.EVENT_NOVERIA)
     _add_event(world, regions[R.VIRMIRE], data.EVENT_VIRMIRE)

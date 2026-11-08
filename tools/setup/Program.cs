@@ -139,8 +139,13 @@ sealed class MainForm : Form
     void SelectGame(GameProfile profile)
     {
         _profile = profile;
-        using (var stream = typeof(MainForm).Assembly.GetManifestResourceStream(profile.OptionsResource))
-            _schema = JsonDocument.Parse(stream).RootElement.Clone();
+        // The payload's options.json (the option schema of the world it installs), else the one built in.
+        var payloadSchema = Path.Combine(_here, profile.Id, "options.json");
+        if (File.Exists(payloadSchema))
+            _schema = JsonDocument.Parse(File.ReadAllText(payloadSchema)).RootElement.Clone();
+        else
+            using (var stream = typeof(MainForm).Assembly.GetManifestResourceStream(profile.OptionsResource))
+                _schema = JsonDocument.Parse(stream).RootElement.Clone();
         _controls.Clear();
         _options.Clear();
         _tabs.TabPages.Clear();
