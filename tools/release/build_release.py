@@ -190,9 +190,17 @@ def template_and_verify(out: str, version: str, ap: str) -> None:
 
 def main(version: str) -> None:
     out = os.path.join(REPO, "build", f"release-{version}")
+    notes_path = os.path.join(out, "RELEASE_NOTES.md")
+    notes = None
+    if os.path.isfile(notes_path):  # written by hand (tools/release/publish.py posts it): kept across rebuilds
+        with open(notes_path, "rb") as f:
+            notes = f.read()
     if os.path.exists(out):
         shutil.rmtree(out)
     os.makedirs(out)
+    if notes is not None:
+        with open(notes_path, "wb") as f:
+            f.write(notes)
 
     def world_skip(rel: str) -> bool:
         parts = rel.replace("\\", "/").split("/")
@@ -244,7 +252,8 @@ def main(version: str) -> None:
 
     template_and_verify(out, version, AP)
 
-    sums = [f"{hashlib.sha256(open(os.path.join(out, f), 'rb').read()).hexdigest()}  {f}" for f in sorted(os.listdir(out))]
+    sums = [f"{hashlib.sha256(open(os.path.join(out, f), 'rb').read()).hexdigest()}  {f}" for f in sorted(os.listdir(out))
+            if f != "RELEASE_NOTES.md"]
     with open(os.path.join(out, "SHA256SUMS"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(sums) + "\n")
     print("\n".join(sums))
