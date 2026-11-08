@@ -74,7 +74,9 @@ Set up Archipelago's environment once (Python 3.11 or newer): `python -m venv ve
 - Game mod patches: `python tools/le1mod/build_mod.py <LE1 game folder>` (see `tools/le1mod/README.md`).
 - Release: `python tools/release/build_release.py <version>` writes the apworld, the YAML template, the mod zip, the
   bridge zip and `SHA256SUMS` to `build/release-<version>/`, after checking that the packaged apworld generates.
-- Setup app: `python tools/setup/package.py <app version>` (see `tools/setup/README.md`).
+- Setup app: `python tools/setup/package.py <app version>`, then `python tools/setup/test_setup.py --exe <its exe>` (see
+  `tools/setup/README.md`; in WSL use `python3`).
+- LE1APExtras: `python tools/le1apextras/build.py` (see `tools/le1apextras/README.md`).
 
 ## Credits
 

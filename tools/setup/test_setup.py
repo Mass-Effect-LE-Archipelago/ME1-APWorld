@@ -4,6 +4,7 @@ usage: python tools/setup/test_setup.py [--exe <Mass Effect AP Setup.exe>] [--me
                                         [--me2-loader <bink2w64.dll>] [--rad-bink <RAD bink2w64.dll>]
 Each test builds a fake Legendary Edition + Archipelago install, installs from a real release payload, checks the
 result, uninstalls, and requires every file to be byte-identical (SHA-256) to before, with nothing added.
+Runs on Windows, or in WSL (the scratch folders go to Windows' temp folder, which the exe can reach).
 """
 import argparse
 import hashlib
@@ -14,7 +15,7 @@ import sys
 import tempfile
 import zipfile
 
-from package import defaults, me1_payload, me2_payload
+from package import defaults, me1_payload, me2_payload, windows_path, windows_temp
 
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -41,8 +42,8 @@ class Run:
         self.failures: list[str] = []
 
     def cli(self, command: str, *extra: str, ok: bool = True) -> str:
-        args = [str(self.exe), command, self.game, "--game", str(self.le), "--ap", str(self.ap),
-                "--payload", str(self.payload / self.game), "--state", str(self.state), *extra]
+        args = [str(self.exe), command, self.game, "--game", windows_path(self.le), "--ap", windows_path(self.ap),
+                "--payload", windows_path(self.payload / self.game), "--state", windows_path(self.state), *extra]
         result = subprocess.run(args, capture_output=True, text=True)
         if (result.returncode == 0) != ok:
             self.fail(f"{command} {extra}: exit {result.returncode}: {result.stdout} {result.stderr}")
@@ -57,7 +58,7 @@ class Run:
         print(f"  FAIL {self.game}: {what}")
 
     def toc_entries(self, toc: pathlib.Path) -> dict[str, int]:
-        out = subprocess.run([str(self.exe), "--toc-list", str(toc)], capture_output=True, text=True).stdout.split("\n")
+        out = subprocess.run([str(self.exe), "--toc-list", windows_path(toc)], capture_output=True, text=True).stdout.split("\n")
         return {line.split(" ", 1)[1]: int(line.split(" ", 1)[0]) for line in out if line.strip()}
 
     def snapshot(self) -> dict[str, str]:
@@ -205,7 +206,10 @@ def main() -> int:
     if args.me1_release is None:
         parser.error("no build/release-<version> folder: run tools/release/build_release.py first, or pass --me1-release")
     failures = []
-    with tempfile.TemporaryDirectory(prefix="apsetup-") as scratch:
+    with tempfile.TemporaryDirectory(prefix="apsetup-", dir=windows_temp()) as scratch:
+        exe = pathlib.Path(scratch) / args.exe.name  # a copy on the Windows side: WSL runs .exe files only from there
+        shutil.copy(args.exe, exe)
+        args.exe = exe
         failures += me1(args.exe, args.me1_release, pathlib.Path(scratch) / "me1")
         if all(p is not None and p.exists() for p in (args.me2_release, args.me2_loader, args.rad_bink)):
             failures += me2(args.exe, args.me2_release, args.me2_loader, args.rad_bink, pathlib.Path(scratch) / "me2")

@@ -12,7 +12,8 @@ License: GPL-3.0 (`LICENSE`), because it is built with LegendaryExplorerCore. Th
 
 ## Build
 
-1. .NET 10 SDK on Windows.
+1. .NET 10 SDK on Windows. The scripts run on Windows, or in WSL with `python3` (they call the Windows `dotnet.exe` and
+   pass it Windows paths; the tests use Windows' temp folder).
 2. LegendaryExplorerCore source: the `vendor/LegendaryExplorer` submodule (`git submodule update --init`), pinned to
    the commit the app is built with.
 3. `dotnet build tools/setup/APSetup.csproj -c Release`, or `python tools/setup/package.py <version>` for the

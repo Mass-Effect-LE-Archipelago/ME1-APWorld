@@ -6,3 +6,5 @@ __pycache__/
 *.zip
 /build/
 /release/
+/tools/setup/bin/
+/tools/setup/obj/
