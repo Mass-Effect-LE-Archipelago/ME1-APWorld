@@ -96,6 +96,18 @@ class TestPlanetGates(unittest.TestCase):
                           rows[89]["UsablePlanetParameter"]), (build_mod.MAKO, 0, build_mod.TWO_SQUADMATES, 1))
 
 
+class TestAddTransition(unittest.TestCase):
+    def test_adds_a_bool_transition_once(self) -> None:
+        start = 4
+        data = b"\x00" * start + transition_map((20101, [[0, 0, 20199, 1, 0], [0, 0, 20101, 1, 0]]))
+        out = transitions.add_bool_transition(data, start, 20103, 20103)
+        self.assertEqual(transitions.transition_ids(out, start), [20101, 20103])
+        self.assertEqual([(w.transition, w.bool_index, w.value) for w in transitions.bool_writes(bytearray(out), start)],
+                         [(20101, 20199, 1), (20101, 20101, 1), (20103, 20103, 1)])
+        with self.assertRaises(ValueError):
+            transitions.add_bool_transition(out, start, 20103, 20103)
+
+
 class TestStoryRecruitment(unittest.TestCase):
     def test_swaps_each_int_const_once_and_is_idempotent(self) -> None:
         code = b"\x1b\x00" + b"\x1d" + struct.pack("<i", 3941) + b"\x27" + b"\x1d" + struct.pack("<i", 3942) + b"\x16"

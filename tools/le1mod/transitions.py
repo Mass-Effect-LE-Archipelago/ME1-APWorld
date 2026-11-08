@@ -1,4 +1,4 @@
-"""BioStateEventMap (plot transition map) binary: read its elements and retarget bool writes in place.
+"""BioStateEventMap (plot transition map) binary: read its elements, retarget bool writes in place, add transitions.
 
 Layout after the export's net index and empty property list: int count, then per transition: int id, int version,
 int element count, elements. An element starts with its type: 0 bool (5 ints: type, version, bool, value, useParam),
@@ -49,3 +49,28 @@ def retarget_bool_sets(data: bytearray, start: int, bools: set[int], target: int
     for w in changed:
         struct.pack_into("<i", data, w.offset, target)
     return changed
+
+
+def transition_ids(data: bytes | bytearray, start: int) -> list[int]:
+    """The transition ids of the map that begins at `start`, in order."""
+    count = struct.unpack_from("<i", data, start)[0]
+    o, ids = start + 4, []
+    for _ in range(count):
+        transition, _version, elements = struct.unpack_from("<3i", data, o)
+        ids.append(transition)
+        o += 12
+        for _ in range(elements):
+            kind = struct.unpack_from("<i", data, o)[0]
+            o += 4 * (8 + struct.unpack_from("<i", data, o + 28)[0] if kind == SUBSTATE else FIXED_INTS[kind])
+    if o != len(data):
+        raise ValueError(f"map ends at {o}, data at {len(data)}")
+    return ids
+
+
+def add_bool_transition(data: bytes | bytearray, start: int, transition: int, bool_index: int) -> bytes:
+    """The map (`data` from `start` to its end) with transition `transition` added: it sets `bool_index` to true."""
+    if transition in transition_ids(data, start):
+        raise ValueError(f"transition {transition} already exists")
+    count = struct.unpack_from("<i", data, start)[0]
+    event = struct.pack("<3i", transition, 0, 1) + struct.pack("<5i", BOOL, 0, bool_index, 1, 0)
+    return bytes(data[:start]) + struct.pack("<i", count + 1) + bytes(data[start + 4:]) + event
