@@ -89,7 +89,7 @@ class FakeBridge:
         self.transactions = []
         self.bridge_version = 13
         self.inventory_full = False  # v13: GIVE answers ERR full and the index stays
-        self.mod = "0.2.6"
+        self.mod = "0.2.8"
         self.bool_writes = []
         self.int_writes = []
         self.gives = []
@@ -984,7 +984,7 @@ class FakeGame:
     later, before the next request (possibly after `load` switched the save). `lost_replies` makes the next N TXNs run
     and then breaks the pipe before the reply."""
 
-    def __init__(self, save=None, *, version=13, mod="0.2.6"):
+    def __init__(self, save=None, *, version=13, mod="0.2.8"):
         self.save = save or FakeSave()
         self.version, self.mod = version, mod
         self.inventory_full = False  # v13: a GIVE answers ERR full and leaves the index
