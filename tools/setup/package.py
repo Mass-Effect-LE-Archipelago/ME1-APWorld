@@ -4,9 +4,11 @@ usage: python tools/setup/package.py <app version> [--me1-release <dir>] [--me2-
   --me1-release: a folder written by tools/release/build_release.py (default: the newest build/release-<version>)
   --me2-release, --me2-loader: the ME2 payload (an ArchipelagoME2 release folder and its ASI loader); left out when not given
 Layout: "Mass Effect AP Setup.exe" (self-contained, single file), ME1\ (and ME2\) payloads (see Profiles.cs), SHA256SUMS.
+Runs on Windows, or in WSL with the Windows .NET SDK (dotnet.exe on PATH): paths are handed to it through wslpath.
 """
 import argparse
 import hashlib
+import os
 import pathlib
 import shutil
 import subprocess
@@ -17,6 +19,21 @@ HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 
 
+def windows_path(path: pathlib.Path | str) -> str:
+    """A path Windows programs can open (WSL paths go through wslpath)."""
+    if os.name == "nt":
+        return str(path)
+    return subprocess.check_output(["wslpath", "-w", str(path)], text=True).strip()
+
+
+def windows_temp() -> pathlib.Path:
+    """Windows' temp folder, as a path this Python can use."""
+    if os.name == "nt":
+        return pathlib.Path(os.environ["TEMP"])
+    win = subprocess.check_output(["powershell.exe", "-NoProfile", "-Command", "$env:TEMP"], text=True).strip()
+    return pathlib.Path(subprocess.check_output(["wslpath", "-u", win], text=True).strip())
+
+
 def me1_payload(release: pathlib.Path, dest: pathlib.Path) -> None:
     """ME1\\: apworld, ASI\\ (bridge + checks table), ArchipelagoME1\\ (moddesc.ini, DLC_MOD_ArchipelagoME1, BASEGAME),
     options.json (the world's option schema)."""
@@ -25,7 +42,7 @@ def me1_payload(release: pathlib.Path, dest: pathlib.Path) -> None:
     shutil.copy(release / "mass_effect_le1.apworld", dest / "mass_effect_le1.apworld")
     (dest / "ASI").mkdir()
     with zipfile.ZipFile(release / f"ArchipelagoME1-bridge-{version}.zip") as z:
-        for name in ("LE1APBridge.asi", "LE1APBridge.checks.tsv"):
+        for name in ("LE1APBridge.asi", "LE1APBridge.checks.tsv", "LE1APExtras.asi"):
             (dest / "ASI" / name).write_bytes(z.read(f"ArchipelagoME1-bridge-{version}/ASI/{name}"))
     with zipfile.ZipFile(release / f"ArchipelagoME1-mod-{version}.zip") as z:
         z.extractall(dest)
@@ -71,9 +88,10 @@ def main() -> int:
     if out.exists():
         shutil.rmtree(out)
     publish = HERE / "bin" / "publish"
-    subprocess.run(["dotnet", "publish", str(HERE / "APSetup.csproj"), "-c", "Release", "-r", "win-x64", "--self-contained", "true",
+    dotnet = "dotnet" if os.name == "nt" else "dotnet.exe"
+    subprocess.run([dotnet, "publish", windows_path(HERE / "APSetup.csproj"), "-c", "Release", "-r", "win-x64", "--self-contained", "true",
                     "-p:PublishSingleFile=true", "-p:IncludeNativeLibrariesForSelfExtract=true", "-p:EnableCompressionInSingleFile=true", f"-p:Version={args.version}",
-                    "-o", str(publish)], check=True)
+                    "-o", windows_path(publish)], check=True)
     out.mkdir(parents=True)
     shutil.copy(publish / "Mass Effect AP Setup.exe", out / "Mass Effect AP Setup.exe")
     me1_payload(args.me1_release, out / "ME1")

@@ -10,7 +10,8 @@ Noveria, Virmire, Asteroid X57) stay locked until their coordinates are found. S
 story sends a check, and they join your squad when their item arrives (Kaidan and Ashley can instead join at the
 Citadel as in the original game). Ilos opens once Virmire is done and enough Prothean Beacon
 Fragments are collected. Weapons, armor, bio-amps, omni-tools and upgrades from every manufacturer arrive as items,
-and their level climbs from I to X over the seed. Credits, omni-gel, medi-gel and grenades are filler.
+and their level climbs from I to X over the seed. Experience items give the squad XP sized like a quest reward at its
+level. Filler is mostly credits, also scaled to the squad level, with some omni-gel, medi-gel and grenades.
 
 Decryption locks on containers can be removed, and Wrex always listens to reason on Virmire (Charm and Intimidate are
 always available in the standoff).
@@ -53,7 +54,8 @@ uncharted-world landing, so codex pages and quests from their later conversation
 on uncharted worlds. Kaidan's and Ashley's conversations also wait for Therum, Feros or Noveria to be finished.
 Kaidan, Ashley and Wrex can die on Virmire, so codex pages only they give hold no progression items (this game's gear
 can be there) and quests only they give hold filler only. The same goes for Joker's prologue pages, which are only
-there until you meet Udina on the Citadel.
+there until you meet Udina on the Citadel, and for Chohe and Nonuel, whose star systems only appear after the 75%
+Paragon or Renegade transmission.
 Aid Stations cannot be used at full medi-gel: use a medi-gel first to send the check.
 
 Eden Prime, Therum, Virmire and Asteroid X57 close for good once finished, and Feros and Noveria close in part (afterwards

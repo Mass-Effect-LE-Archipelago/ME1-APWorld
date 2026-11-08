@@ -21,9 +21,14 @@ from ..client import (
     plot_bool_for_item,
     sync_human_squad,
     sync_ilos_gate,
+    sync_two_squadmates,
+    TWO_SQUADMATES_PLOT_BOOL,
     evaluate_location_predicates,
     parse_plot_predicate,
     sync_received_items as _sync_received_items,
+    sync_experience as _sync_experience,
+    ExtrasConnection,
+    EXPERIENCE_ITEM_ID,
     gear_level,
     upgrade_row,
     deliver_notices,
@@ -41,12 +46,40 @@ from ..client import (
 )
 from ..data import ITEM_NAME_TO_ID, LOCATION_NAME_TO_ID, UPGRADE
 from ..gear import GEAR_LINES
+from ..levelup import CREDIT_REWARDS, XP_REWARDS
 
 ID = seed_identity("S", 0, 1)  # the identity of the test contexts (server seed "S", team 0, slot 1)
 
 
 def sync_received_items(*args, **kwargs):
     return _sync_received_items(*args, identity=ID, **kwargs)
+
+
+def sync_experience(*args, **kwargs):
+    return _sync_experience(*args, identity=ID, **kwargs)
+
+
+class FakeExtras:
+    """LE1APExtras XPTXN: identity, then the Experience index, then the grant and the index update in one step."""
+
+    def __init__(self, bridge):
+        self.bridge = bridge  # the same save: the extras read its identity and keep their index in its ints
+        self.grants = []
+
+    def experience_index(self):
+        return self.bridge.ints.get(2010, 0)
+
+    def experience_transaction(self, identity, index, amount):
+        if identity != self.bridge.identity():
+            raise IdentityMismatchError("another save was loaded")
+        current = self.bridge.ints.get(2010, 0)
+        if current > index:
+            return False
+        if current < index:
+            raise DeliveryGapError(f"ERR gap {current}")
+        self.grants.append(amount)
+        self.bridge.ints[2010] = index + 1
+        return True
 
 
 class FakeBridge:
@@ -56,7 +89,7 @@ class FakeBridge:
         self.transactions = []
         self.bridge_version = 13
         self.inventory_full = False  # v13: GIVE answers ERR full and the index stays
-        self.mod = "0.2.6"
+        self.mod = "0.2.8"
         self.bool_writes = []
         self.int_writes = []
         self.gives = []
@@ -339,6 +372,79 @@ class TestGearDelivery(unittest.TestCase):
         self.assertEqual([give[1] for give in bridge.gives], [1, 5, 10])
 
 
+class TestLevelScaledRewards(unittest.TestCase):
+    XP = SimpleNamespace(item=EXPERIENCE_ITEM_ID)
+    CREDITS = SimpleNamespace(item=ITEM_NAME_TO_ID["Credits"])
+
+    def test_credits_follow_the_squad_level(self):
+        bridge = FakeBridge()
+        sync_received_items(bridge, [self.CREDITS, self.CREDITS], squad_level=20)
+        self.assertEqual(bridge.resources, [(0, CREDIT_REWARDS[19][3])] * 2)  # LargeReward at level 20
+        unknown = FakeBridge()
+        sync_received_items(unknown, [self.CREDITS], gear_total=3)
+        self.assertEqual(unknown.resources, [(0, 500)])  # no squad level: gear level I
+
+    def test_experience_is_a_bridge_none_and_granted_once_by_the_extras(self):
+        bridge = FakeBridge()
+        extras = FakeExtras(bridge)
+        items = [self.XP, self.CREDITS, self.XP]
+        delivered = sync_received_items(bridge, items, squad_level=10)
+        self.assertEqual([delivery for _, delivery in bridge.transactions][0::2], ["NONE", "NONE"])
+        self.assertEqual(sync_experience(extras, items, delivered, 10, 2), 0)
+        self.assertEqual(extras.grants, [XP_REWARDS[9][3]] * 2)  # MajorQuest at level 10
+        sync_experience(extras, items, delivered, 10, 2)
+        self.assertEqual(len(extras.grants), 2)  # nothing granted twice
+
+    def test_only_delivered_experience_is_granted(self):
+        bridge = FakeBridge()
+        extras = FakeExtras(bridge)
+        items = [self.XP, self.XP, self.XP]
+        sync_experience(extras, items, 1, 5, 3)
+        self.assertEqual(extras.grants, [XP_REWARDS[4][4]])  # MainPlot at level 5, one delivered
+
+    def test_waiting_experience_is_granted_at_the_later_level(self):
+        bridge = FakeBridge()
+        extras = FakeExtras(bridge)
+        items = [self.XP]
+        sync_received_items(bridge, items)  # no extras yet: the bridge's index moves, the grant waits
+        sync_experience(extras, items, 1, 30, 0)
+        self.assertEqual(extras.grants, [XP_REWARDS[29][1]])
+
+    def test_gap_pauses_experience(self):
+        bridge = FakeBridge()
+        extras = FakeExtras(bridge)
+        extras.experience_index = lambda: 1  # read before another save (index 0) was loaded
+        waiting = sync_experience(extras, [self.XP, self.XP], 2, 1, 0)
+        self.assertEqual(waiting, 1)
+        self.assertEqual(extras.grants, [])
+
+    def test_levels_outside_the_table_are_clamped(self):
+        bridge = FakeBridge()
+        sync_received_items(bridge, [self.CREDITS], squad_level=99)
+        self.assertEqual(bridge.resources, [(0, CREDIT_REWARDS[-1][3])])
+
+    def test_extras_requests(self):
+        replies = {b"LEVEL": b"OK 12 34567", b"XPIDX": b"OK 3", b"XPTXN 1 2 3 400": b"OK applied"}
+
+        class Pipe:
+            def __init__(self):
+                self.last = b""
+
+            def write(self, data):
+                self.last = data
+
+            def read(self, _size):
+                return replies[self.last]
+
+            def close(self):
+                pass
+
+        extras = ExtrasConnection(opener=lambda *_args: Pipe())
+        self.assertEqual(extras.squad_level(), 12)
+        self.assertEqual(extras.experience_index(), 3)
+        self.assertTrue(extras.experience_transaction((1, 2), 3, 400))
+
+
 class TestContextPolling(unittest.IsolatedAsyncioTestCase):
     async def test_poll_sends_new_checks_and_goal(self):
         bridge = FakeBridge(bools={3569: True, 6530: True}, ints={2000: 0})
@@ -443,6 +549,17 @@ class TestSquadAndIlos(unittest.TestCase):
                 after = FakeBridge(bools={3939: False, 3940: False, survivor: True})
                 self.assertFalse(sync_human_squad(after))
                 self.assertEqual(after.bool_writes, [])
+
+    def test_two_squadmates_bool_follows_the_party(self):
+        cases = [((), False), ((3941,), False), ((3941, 3943), True), ((3939, 3940, 3944), True)]
+        for in_party, value in cases:
+            with self.subTest(in_party=in_party):
+                bridge = FakeBridge(bools={index: index in in_party for index in range(3939, 3945)})
+                self.assertEqual(sync_two_squadmates(bridge, bridge), value)  # written only when it changes
+                self.assertEqual(bridge.bool_writes, [(TWO_SQUADMATES_PLOT_BOOL, True)] if value else [])
+        bridge = FakeBridge(bools={3941: True, TWO_SQUADMATES_PLOT_BOOL: True})  # back to one (an older save)
+        self.assertTrue(sync_two_squadmates(bridge, bridge))
+        self.assertEqual(bridge.bool_writes, [(TWO_SQUADMATES_PLOT_BOOL, False)])
 
     def test_ilos_gate_does_not_rewrite_when_open(self):
         bridge = FakeBridge(bools={2509: True, ILOS_OPEN_PLOT_BOOL: True})
@@ -867,7 +984,7 @@ class FakeGame:
     later, before the next request (possibly after `load` switched the save). `lost_replies` makes the next N TXNs run
     and then breaks the pipe before the reply."""
 
-    def __init__(self, save=None, *, version=13, mod="0.2.6"):
+    def __init__(self, save=None, *, version=13, mod="0.2.8"):
         self.save = save or FakeSave()
         self.version, self.mod = version, mod
         self.inventory_full = False  # v13: a GIVE answers ERR full and leaves the index

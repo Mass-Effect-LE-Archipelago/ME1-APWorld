@@ -68,7 +68,7 @@ class MassEffectLE1World(World):
         return items.create_item(self, name)
 
     def get_filler_item_name(self) -> str:
-        return self.random.choice(data.FILLER)
+        return self.random.choices(data.FILLER, data.FILLER_WEIGHTS)[0]
 
     def set_rules(self) -> None:
         rules.set_rules(self)
@@ -77,8 +77,8 @@ class MassEffectLE1World(World):
         return {
             **self.options.as_dict(
                 "fragments_total", "fragments_required", "required_squad_size", "mako_shuffled", "human_squad_at_citadel",
-                "bring_down_the_sky", "gear_pool", "upgrade_count", "unlock_containers", "infinite_sprint",
-                "shop_slots",
+                "bring_down_the_sky", "useful_share", "unlock_containers", "infinite_sprint",
+                "shop_slots", "experience_size",
             ),
             "gear_total": self.gear_total,
         }

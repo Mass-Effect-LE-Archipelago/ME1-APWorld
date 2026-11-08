@@ -135,7 +135,8 @@ def _run_oodle(mode: str, blocks: list[tuple[bytes, int]], dll: str) -> list[byt
             for data, out_size in blocks:
                 w.write(struct.pack("<ii", len(data), out_size))
                 w.write(data)
-        subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", _host_path(os.path.join(HERE, "oodle.ps1")),
+        script = _host_path(os.path.join(HERE, "oodle.ps1"))
+        subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
                         "-Dll", _host_path(dll), "-Mode", mode, "-Jobs", _host_path(jobs), "-Out", _host_path(out)],
                        check=True, stdout=subprocess.DEVNULL)
         result, data, o = [], open(out, "rb").read(), 0
@@ -215,4 +216,83 @@ def write(pkg: Package, path: str, dll: str) -> None:
         out += body
     end = max(c + s for _, _, c, s in h.chunks)
     out += raw[end:]  # anything stored after the last chunk
+    open(path, "wb").write(bytes(out))
+
+
+def _header_fields(data: bytes | bytearray) -> int:
+    """Offset of the header's package flags (the summary fields follow it)."""
+    return 16 + struct.unpack_from("<i", data, 12)[0]
+
+
+def relayout(pkg: Package, added_names: list[str], replaced: dict[int, bytes]) -> bytes:
+    """The package image with names appended to the name table and export data replaced (export index -> bytes).
+    Everything after the name table moves, and every offset into it is updated. Write it with write_image."""
+    d, h = bytes(pkg.image), pkg.header
+    o = _header_fields(d)
+    export_off = struct.unpack_from("<i", d, o + 16)[0]
+    import_off, depends_off, guids_off = struct.unpack_from("<3i", d, o + 24)
+    thumbnail_off = struct.unpack_from("<i", d, o + 44)[0]
+    full_header = struct.unpack_from("<i", d, 8)[0]
+    names_end = h.name_off
+    for _ in range(h.name_count):
+        n = struct.unpack_from("<i", d, names_end)[0]
+        names_end += 4 + (n if n >= 0 else -2 * n)
+    if names_end != import_off:
+        raise ValueError(f"{pkg.path}: the import table does not follow the name table")
+    new_names = b"".join(struct.pack("<i", len(n) + 1) + n.encode("latin-1") + b"\0" for n in added_names)
+    delta = len(new_names)
+
+    head = bytearray(d[:names_end]) + new_names + bytearray(d[names_end:full_header])
+    struct.pack_into("<i", head, 8, full_header + delta)
+    struct.pack_into("<i", head, o + 4, h.name_count + len(added_names))
+    struct.pack_into("<i", head, o + 16, export_off + delta)
+    struct.pack_into("<3i", head, o + 24, import_off + delta, depends_off + delta,
+                     guids_off + delta if guids_off else 0)
+    if thumbnail_off:
+        struct.pack_into("<i", head, o + 44, thumbnail_off + delta)
+    generations = struct.unpack_from("<i", head, o + 64)[0]
+    for g in range(generations):  # each generation records the name count
+        struct.pack_into("<i", head, o + 68 + 12 * g + 4, h.name_count + len(added_names))
+
+    ordered = sorted(pkg.exports, key=lambda e: e.offset)
+    if ordered and ordered[0].offset < full_header:
+        raise ValueError(f"{pkg.path}: export data starts inside the header")
+    body, cursor = bytearray(), full_header
+    for export in ordered:
+        if export.offset != cursor:
+            raise ValueError(f"{pkg.path}: export data is not contiguous at {export.offset}")
+        data = replaced.get(export.index, d[export.offset:export.offset + export.size])
+        struct.pack_into("<ii", head, export.entry_offset + delta + 32, len(data), full_header + delta + len(body))
+        body += data
+        cursor = export.offset + export.size
+    return bytes(head + body + d[cursor:])
+
+
+def add_names(pkg: Package, names: list[str]) -> list[str]:
+    """The names not yet in the package, in order (pass them to relayout)."""
+    return [n for n in dict.fromkeys(names) if n not in pkg.names]
+
+
+CHUNK_SIZE = 0x100000  # uncompressed bytes per chunk when chunks are laid out anew
+
+
+def write_image(pkg: Package, image: bytes, path: str, dll: str) -> None:
+    """Write an image whose size may differ from pkg's: uncompressed as is, or compressed in new chunks."""
+    h, raw = pkg.header, pkg.raw
+    if h.compression == 0:
+        open(path, "wb").write(image)
+        return
+    header_end = h.chunks[0][0]  # the image header (no chunk table) ends where the first chunk's data starts
+    tail = image[h.chunk_table_off:header_end]
+    block_size, _ = _chunk_blocks(raw, h.chunks[0][2])
+    ranges = [(start, min(start + CHUNK_SIZE, len(image))) for start in range(header_end, len(image), CHUNK_SIZE)]
+    blocks = [[image[b:min(b + block_size, end)] for b in range(start, end, block_size)] for start, end in ranges]
+    encoded = iter(_run_oodle("compress", [(b, 0) for chunk in blocks for b in chunk], dll))
+    out = bytearray(image[:h.chunk_table_off - 4]) + struct.pack("<I", len(ranges)) + bytearray(16 * len(ranges)) + tail
+    for i, ((start, end), chunk) in enumerate(zip(ranges, blocks)):
+        packed = [next(encoded) for _ in chunk]
+        body = struct.pack("<4I", TAG, block_size, sum(map(len, packed)), end - start)
+        body += b"".join(struct.pack("<II", len(c), len(u)) for c, u in zip(packed, chunk)) + b"".join(packed)
+        struct.pack_into("<4I", out, h.chunk_table_off + 16 * i, start, end - start, len(out), len(body))
+        out += body
     open(path, "wb").write(bytes(out))

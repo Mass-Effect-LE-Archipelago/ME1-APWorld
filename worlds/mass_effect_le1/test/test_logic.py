@@ -1,6 +1,7 @@
-from ..data import COORDINATES, EVENT_ACT1, EVENT_FEROS, EVENT_THERUM, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, MAKO, NO_RETURN_REGIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
+from ..data import COORDINATES, EVENT_ACT1, EXPERIENCE, EVENT_FEROS, EVENT_THERUM, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, MAKO, NO_RETURN_REGIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
 from BaseClasses import Item, ItemClassification, LocationProgressType
 from ..options import options_presets
+from ..items import GEAR_MAX
 from ..squad_talk import TALK_GATES
 from . import MassEffectLE1TestBase
 
@@ -83,12 +84,10 @@ class TestUnchartedGates(MassEffectLE1TestBase):
     def test_feros_planets_need_feros_complete(self) -> None:
         self.collect_event(EVENT_ACT1)
         self.assertFalse(self.can_reach_location("Chasca: Aid Station 1"))
-        self.assertFalse(self.can_reach_location("UNC: Derelict Freighter: Started"))
         self.assertFalse(self.can_reach_location("Investigate Samples: Completed"))
         self.collect_event(EVENT_FEROS)
         self.assertTrue(self.can_reach_location("Investigate Samples: Completed"))
         self.assertTrue(self.can_reach_location("Chasca: Aid Station 1"))
-        self.assertTrue(self.can_reach_location("UNC: Derelict Freighter: Started"))
 
     def test_noveria_planets_need_noveria_complete(self) -> None:
         names = ("Altahe: Aid Station 1", "Unidentified Space Facility: Aid Station 1", "UNC: Listening Post Alpha: Started")
@@ -136,6 +135,14 @@ class TestUnchartedGates(MassEffectLE1TestBase):
                                ("Noveria: Ammo Pack 1", False),  # Port Hanshan
                                ("Feros: Zhu's Hope Merchant Slot 1", False)):
             self.assertEqual(takes_own_progression(self, name), not closed, name)
+
+    def test_morality_planets_hold_no_progression(self) -> None:
+        """Chohe and Nonuel open only with 75% Paragon or Renegade (their star systems' conditional 1669)."""
+        for name, missable in (("Chohe: Technician Kit 1", True), ("Nonuel: Aid Station 1", True),
+                               ("Klensal: Locked Secure Weapon Locker 1", False)):
+            self.assertEqual(takes_own_progression(self, name), not missable, name)
+        location = self.multiworld.get_location("Chohe: Technician Kit 1", self.player)
+        self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))))
 
     def test_joker_prologue_pages_hold_no_progression(self) -> None:
         for name in ("Codex: Humanity and the Systems Alliance: Systems Alliance",
@@ -231,8 +238,9 @@ class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
 
 
 class TestGearDraw(MassEffectLE1TestBase):
-    options = {"fragments_total": 1, "fragments_required": 1, "upgrade_count": 2, "codexsanity": "off", "journalsanity": "off", "containersanity": "off",
-               "aid_stations": False, "shop_slots": 0}
+    options = {"fragments_total": 1, "fragments_required": 1, "useful_share": 100, "upgrade_weight": 0, "experience_weight": 0,
+               "codexsanity": "off", "journalsanity": "off",
+               "containersanity": "off", "aid_stations": False, "shop_slots": 0}
 
     def test_gear_fills_the_free_room_with_distinct_lines_and_a_spectre(self) -> None:
         gear = [item.name for item in self.multiworld.itempool if item.name in GEAR_BY_NAME]
@@ -240,9 +248,6 @@ class TestGearDraw(MassEffectLE1TestBase):
         self.assertEqual(len(gear), self.world.gear_total)
         self.assertGreater(len(gear), 0)
         self.assertTrue(any(GEAR_BY_NAME[name].spectre for name in gear))
-        upgrades = len(self.get_items_by_name(UPGRADE))
-        filler = sum(1 for item in self.multiworld.itempool if item.name in FILLER)
-        self.assertEqual(upgrades, min(2, upgrades + filler))  # upgrades take room left after gear, before filler
         self.assertEqual(self.world.fill_slot_data()["gear_total"], len(gear))
 
     def test_categories_are_spread_before_any_repeats(self) -> None:
@@ -251,16 +256,34 @@ class TestGearDraw(MassEffectLE1TestBase):
         self.assertEqual(len(categories), len(set(categories)))  # fewer slots than the 12 categories here
 
 
-class TestNoGear(MassEffectLE1TestBase):
-    options = {"gear_pool": 0, "upgrade_count": 0}
+class TestNoUsefulItems(MassEffectLE1TestBase):
+    options = {"useful_share": 0}
 
-    def test_no_gear_or_upgrades(self) -> None:
-        self.assertFalse(any(item.name in GEAR_BY_NAME or item.name == UPGRADE for item in self.multiworld.itempool))
+    def test_only_progression_and_filler(self) -> None:
+        own = [item for item in self.multiworld.itempool if item.player == self.player]
+        self.assertFalse(any(item.useful for item in own))
         self.assertEqual(self.world.gear_total, 0)
 
 
+class TestZeroWeightsGiveFiller(MassEffectLE1TestBase):
+    options = {"gear_weight": 0, "upgrade_weight": 0, "experience_weight": 0}
+
+    def test_no_useful_items(self) -> None:
+        self.assertFalse(any(item.useful for item in self.multiworld.itempool if item.player == self.player))
+
+
+class TestGearOnly(MassEffectLE1TestBase):
+    options = {"useful_share": 100, "upgrade_weight": 0, "experience_weight": 0}
+
+    def test_gear_caps_and_nothing_else_is_useful(self) -> None:
+        names = [item.name for item in self.multiworld.itempool if item.player == self.player]
+        self.assertEqual(names.count(UPGRADE) + names.count(EXPERIENCE), 0)
+        self.assertLessEqual(self.world.gear_total, GEAR_MAX)
+        self.assertEqual(len(set(name for name in names if name in GEAR_BY_NAME)), self.world.gear_total)
+
+
 class TestGearSpread(MassEffectLE1TestBase):
-    options = {"gear_pool": 70}
+    options = {"useful_share": 10, "upgrade_weight": 0, "experience_weight": 0}  # about 64 lines: under 12 x 6
 
     def test_round_robin_keeps_categories_within_one(self) -> None:
         counts: dict[str, int] = {}
@@ -315,6 +338,17 @@ class TestContainerDrops(MassEffectLE1TestBase):
         self.assertEqual(LOCATIONS["Chasca: Crate 1 (Item 3)"].ot_plot, LOCATIONS["Chasca: Crate 1"].ot_plot)
         self.assertFalse(any(LOCATIONS[n].container == "station" for n in names if n in LOCATIONS))
 
+    def test_agebinium_needs_two_squadmates(self) -> None:
+        names = ("Agebinium: Ammo Pack 1", "Agebinium: Crate 1", "Agebinium: Crate 1 (Item 3)")
+        self.collect(self.multiworld.get_location(EVENT_ACT1, self.player).item)
+        self.collect([self.world.create_item(MAKO), self.world.create_item("Garrus Vakarian")])
+        self.assertTrue(self.can_reach_location("Mavigon: Crate 1"))  # ungated planet: one squadmate is enough
+        for name in names:
+            self.assertFalse(self.can_reach_location(name), name)
+        self.collect(self.world.create_item("Liara T'Soni"))
+        for name in names:
+            self.assertTrue(self.can_reach_location(name), name)
+
 
 class TestUnlockContainers(MassEffectLE1TestBase):
     def test_locked_containers_and_stations_are_checks_by_default(self) -> None:
@@ -332,6 +366,22 @@ class TestKeepLocks(MassEffectLE1TestBase):
                              (loc.name for loc in self.multiworld.get_locations(self.player))))
 
 
+class TestDefaultItemPool(MassEffectLE1TestBase):
+    def test_weighted_useful_share_and_credit_heavy_filler(self):
+        own = [item for item in self.multiworld.itempool if item.player == self.player]
+        useful = [item.name for item in own if item.useful]
+        free = len(useful) + sum(1 for item in own if not item.useful and not item.advancement)
+        self.assertAlmostEqual(len(useful) / free, 0.55, delta=0.15)  # excluded slots also hold filler
+        gear = sum(1 for name in useful if name in GEAR_BY_NAME)
+        upgrades, experience = useful.count(UPGRADE), useful.count(EXPERIENCE)
+        self.assertEqual(gear + upgrades + experience, len(useful))
+        self.assertGreater(gear, upgrades)  # weights 50 / 25 / 25
+        self.assertGreater(gear, experience)
+        self.assertGreater(min(upgrades, experience), 0)
+        filler = [item.name for item in own if item.name in FILLER]
+        self.assertGreater(filler.count("Credits"), len(filler) // 2)
+
+
 class TestJournalsanity(MassEffectLE1TestBase):
     def test_journal_checks_and_excluded_completions(self) -> None:
         journal = [loc for loc in self.multiworld.get_locations(self.player) if LOCATIONS.get(loc.name) and LOCATIONS[loc.name].journal]
@@ -345,6 +395,32 @@ class TestJournalsanity(MassEffectLE1TestBase):
         self.assertFalse(self.can_reach_location("Wrex: Family Armor: Started"))
         self.collect_by_name(["Urdnot Wrex"])
         self.assertTrue(self.can_reach_location("Wrex: Family Armor: Started"))
+
+    def test_jahleed_and_rita_need_two_squadmates(self) -> None:
+        names = ("Citadel: Jahleed's Fears: Started", "Citadel: Jahleed's Fears: Completed", "Citadel: Rita's Sister",
+                 "Citadel: Rita's Sister: Started", "Citadel: Rita's Sister: Completed")
+        self.collect(self.multiworld.get_location(EVENT_ACT1, self.player).item)
+        self.collect_by_name("Garrus Vakarian")
+        for name in names:
+            self.assertFalse(self.can_reach_location(name), name)
+        self.collect_by_name("Liara T'Soni")
+        for name in names:
+            self.assertTrue(self.can_reach_location(name), name)
+
+    def test_squadmate_line_quests_need_a_squadmate(self) -> None:
+        freighter = ("UNC: Derelict Freighter: Started", "UNC: Derelict Freighter: Completed")
+        theta = ("UNC: Listening Post Theta: Started", "UNC: Listening Post Theta: Completed")
+        self.collect_all_but(list(SQUAD))
+        for name in freighter + theta:
+            self.assertFalse(self.can_reach_location(name), name)
+        self.collect_by_name("Tali'Zorah nar Rayya")  # no Listening Post Theta line
+        for name in freighter:
+            self.assertTrue(self.can_reach_location(name), name)
+        for name in theta:
+            self.assertFalse(self.can_reach_location(name), name)
+        self.collect_by_name("Garrus Vakarian")
+        for name in theta:
+            self.assertTrue(self.can_reach_location(name), name)
 
 
 class TestShops(MassEffectLE1TestBase):

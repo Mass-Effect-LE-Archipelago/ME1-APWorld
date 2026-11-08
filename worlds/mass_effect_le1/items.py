@@ -36,24 +36,45 @@ def create_items(world: MassEffectLE1World) -> None:
         # generate_early already guarantees room; this guards future table edits
         raise RuntimeError(f"{data.GAME_NAME}: {len(pool)} items for {unfilled} locations")
 
-    # Gear and upgrades are useful items: they cannot go to excluded locations, nor to data.NO_RETURN_REGIONS with
-    # ilos_useful_items off, which keep that many filler slots.
+    # Useful items cannot go to excluded locations, nor to data.NO_RETURN_REGIONS with ilos_useful_items off: those slots
+    # are left out of the free room that useful_share applies to.
     no_return = {region.value for region in data.NO_RETURN_REGIONS}
     excluded = sum(1 for loc in world.multiworld.get_unfilled_locations(world.player)
                    if loc.progress_type == LocationProgressType.EXCLUDED
                    or (not world.options.ilos_useful_items and loc.parent_region.name in no_return))
     room = unfilled - excluded
-    gear = draw_gear(world, max(0, min(world.options.gear_pool.value, room - len(pool))))
+    useful = round(max(0, room - len(pool)) * world.options.useful_share.value / 100)
+    gear_count, upgrades, experience = draw_useful(world, useful)
+    gear = draw_gear(world, gear_count)
     pool += [create_item(world, name) for name in gear]
     world.gear_total = len(gear)
-    upgrades = max(0, min(world.options.upgrade_count.value, room - len(pool)))
     pool += [create_item(world, data.UPGRADE) for _ in range(upgrades)]
+    pool += [create_item(world, data.EXPERIENCE) for _ in range(experience)]
 
     pool += [create_item(world, world.get_filler_item_name()) for _ in range(unfilled - len(pool))]
     world.multiworld.itempool += pool
 
 
 SPECTRE_SHARE = 20  # about one gear item in twenty is Spectre gear (at least one when any gear is drawn)
+_SPECTRE_LINES = sum(1 for line in data.GEAR_LINES if line.spectre)
+_OTHER_LINES = len(data.GEAR_LINES) - _SPECTRE_LINES
+# The most distinct gear lines draw_gear can return (every non-Spectre line plus Spectre gear at one in twenty).
+GEAR_MAX = max(count for count in range(1, len(data.GEAR_LINES) + 1)
+               if min(_SPECTRE_LINES, max(1, count // SPECTRE_SHARE)) + _OTHER_LINES >= count)
+
+
+def draw_useful(world: MassEffectLE1World, count: int) -> tuple[int, int, int]:
+    """Split `count` useful items into (gear, upgrades, Experience), each item picked at random by the weight options.
+    Gear stops at GEAR_MAX; the other kinds then share the rest. Items with no weight left become filler."""
+    weights = [world.options.gear_weight.value, world.options.upgrade_weight.value, world.options.experience_weight.value]
+    counts = [0, 0, 0]
+    for _ in range(count):
+        if counts[0] >= GEAR_MAX:
+            weights[0] = 0
+        if not any(weights):
+            break
+        counts[world.random.choices(range(3), weights)[0]] += 1
+    return counts[0], counts[1], counts[2]
 
 
 def draw_gear(world: MassEffectLE1World, count: int) -> list[str]:

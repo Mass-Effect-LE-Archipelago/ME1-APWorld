@@ -103,27 +103,58 @@ class UnlockContainers(DefaultOnToggle):
     display_name = "Unlock Containers"
 
 
-class GearPool(Range):
-    """How many gear items (one manufacturer's weapon, armor, bio-amp or omni-tool line each) are drawn into the pool.
+class UsefulShare(Range):
+    """Percent of the free slots (those left after progression that may hold useful items) that get a useful item:
+    gear, a Random Upgrade or Experience, picked at random by the weights below. The rest get filler (mostly credits).
+    A share, so it follows how many checks the other options turn on."""
 
-    Every category is represented; about one in twenty is Spectre gear. Gear arrives at a level that climbs from I to X
-    as you collect it (Spectre gear is always X). Lowered to the free room in the pool, and to at most 228 (every
-    non-Spectre line plus Spectre gear at one in twenty): higher values give 228."""
-
-    display_name = "Gear Items"
-    range_start = 0
-    range_end = 243
-    default = 80
-
-
-class UpgradeCount(Range):
-    """How many Random Upgrade items (a weapon, ammo, armor or grenade mod) are in the pool. Lowered to the free room
-    left after gear."""
-
-    display_name = "Random Upgrades"
+    display_name = "Useful Item Share"
     range_start = 0
     range_end = 100
-    default = 20
+    default = 55
+
+
+class GearWeight(Range):
+    """Weight of gear among useful items: one manufacturer's weapon, armor, bio-amp or omni-tool line each. Every
+    category is represented; about one in twenty is Spectre gear. Gear arrives at a level that climbs from I to X as
+    you collect it (Spectre gear is always X). At most 227 gear items: past that, the other weights share the rest."""
+
+    display_name = "Gear Weight"
+    range_start = 0
+    range_end = 100
+    default = 50
+
+
+class UpgradeWeight(Range):
+    """Weight of Random Upgrades (a weapon, ammo, armor or grenade mod at the current gear level) among useful items."""
+
+    display_name = "Random Upgrade Weight"
+    range_start = 0
+    range_end = 100
+    default = 25
+
+
+class ExperienceWeight(Range):
+    """Weight of Experience among useful items. Each one gives the squad XP scaled to its level, like a quest reward
+    (Experience Size). Needs the LE1APExtras ASI (installed with the bridge); without it, Experience items wait until it
+    is installed."""
+
+    display_name = "Experience Weight"
+    range_start = 0
+    range_end = 100
+    default = 25
+
+
+class ExperienceSize(Choice):
+    """How much XP one Experience item gives: the game's quest reward of that size at the squad's level (minor: about a
+    fifth of a level early on, main_plot: about a whole level early on, a quarter of one near level 50)."""
+
+    display_name = "Experience Size"
+    option_minor_quest = 0
+    option_medium_quest = 1
+    option_major_quest = 2
+    option_main_plot = 3
+    default = 2
 
 
 class FinishedMissionChecks(Choice):
@@ -186,8 +217,11 @@ class MassEffectLE1Options(PerGameCommonOptions):
     finished_mission_checks: FinishedMissionChecks
     ilos_useful_items: IlosUsefulItems
     shop_slots: ShopSlots
-    gear_pool: GearPool
-    upgrade_count: UpgradeCount
+    useful_share: UsefulShare
+    gear_weight: GearWeight
+    upgrade_weight: UpgradeWeight
+    experience_weight: ExperienceWeight
+    experience_size: ExperienceSize
     infinite_sprint: InfiniteSprint
 
 
@@ -199,8 +233,7 @@ options_presets = {
         "containersanity": "off",
         "aid_stations": False,
         "shop_slots": 1,
-        "gear_pool": 40,
-        "upgrade_count": 10,
+        "useful_share": 45,
     },
     "Completionist": {
         "fragments_total": 8,
@@ -212,8 +245,7 @@ options_presets = {
         "aid_stations": True,
         "unlock_containers": True,
         "shop_slots": 5,
-        "gear_pool": 120,
-        "upgrade_count": 40,
+        "useful_share": 75,
     },
 }
 
@@ -222,6 +254,6 @@ option_groups = [
     OptionGroup("Logic", [RequiredSquadSize, MakoShuffled, HumanSquadAtCitadel, BringDownTheSky]),
     OptionGroup("Checks", [Codexsanity, Journalsanity, Containersanity, AidStations, UnlockContainers, FinishedMissionChecks,
                             IlosUsefulItems, ShopSlots]),
-    OptionGroup("Items", [GearPool, UpgradeCount]),
+    OptionGroup("Items", [UsefulShare, GearWeight, UpgradeWeight, ExperienceWeight, ExperienceSize]),
     OptionGroup("Quality of Life", [InfiniteSprint]),
 ]

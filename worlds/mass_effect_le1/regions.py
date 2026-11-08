@@ -144,11 +144,11 @@ def missable_codex(name: str, loc: data.LocationData) -> bool:
 
 
 def no_progression_rule(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
-    """Gets the no_progression_item_allowed rule: a missable codex page, or a check that closes with its mission under
-    finished_mission_checks no_progression."""
+    """Gets the no_progression_item_allowed rule: a missable codex page, a check on a planet only a morality
+    transmission opens, or a check that closes with its mission under finished_mission_checks no_progression."""
     if location_excluded(world, name, loc):
         return False
-    return missable_codex(name, loc) or (
+    return missable_codex(name, loc) or uncharted.location_needs_morality(name) or (
         world.options.finished_mission_checks == world.options.finished_mission_checks.option_no_progression
         and closes_with_mission(name, loc))
 

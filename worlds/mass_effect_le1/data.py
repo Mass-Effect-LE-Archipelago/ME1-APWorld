@@ -66,7 +66,9 @@ COORDINATES = {
 FRAGMENT = "Prothean Beacon Fragment"
 MAKO = "M35 Mako"
 FILLER = ("Credits", "Omni-Gel", "Medi-Gel", "Grenades")
+FILLER_WEIGHTS = (70, 10, 10, 10)  # Credits scale with the squad level; the consumables cap out quickly
 UPGRADE = "Random Upgrade"
+EXPERIENCE = "Experience"  # squad XP, granted through LE1APExtras (tools/le1apextras)
 GEAR_OFFSET = 0x100
 
 _P = ItemClassification.progression
@@ -89,7 +91,8 @@ ITEMS: dict[str, ItemData] = {
     "Medi-Gel": ItemData(0x42, ItemClassification.filler, count=0),
     "Grenades": ItemData(0x43, ItemClassification.filler, count=0),
     UPGRADE: ItemData(0x44, ItemClassification.useful, count=0, groups=frozenset({"Gear"})),
-    # 0x100-0x3FF gear lines: count set by the gear_pool option
+    EXPERIENCE: ItemData(0x45, ItemClassification.useful, count=0),
+    # 0x100-0x3FF gear lines: how many is set by useful_share and gear_weight
     **{line.name: ItemData(GEAR_OFFSET + i, ItemClassification.useful, count=0, groups=frozenset({"Gear", line.category}))
        for i, line in enumerate(GEAR_LINES)},
 }

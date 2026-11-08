@@ -24,9 +24,10 @@ import Utils
 from CommonClient import ClientCommandProcessor, CommonContext, get_base_parser, gui_enabled, handle_url_arg, server_loop
 from NetUtils import ClientStatus
 
-from .data import (FRAGMENT, HUMAN_SQUAD, ID_BASE, ITEM_NAME_TO_ID, ITEMS, LOCATIONS, LOCATION_NAME_TO_ID, MAKO,
-                   SHOP_SLOTS_MAX, SHOPS, UPGRADE, Region, shop_bool)
+from .data import (EXPERIENCE, FRAGMENT, HUMAN_SQUAD, ID_BASE, ITEM_NAME_TO_ID, ITEMS, LOCATIONS, LOCATION_NAME_TO_ID,
+                   MAKO, SHOP_SLOTS_MAX, SHOPS, UPGRADE, Region, shop_bool)
 from .gear import GEAR_LINES, UPGRADE_ROWS
+from .levelup import CREDIT_REWARDS, CREDIT_REWARDS_COLUMNS, XP_REWARDS, XP_REWARDS_COLUMNS
 from .tracker import (MARKER_AREAS, MARKER_IN_LOGIC_BASE, MARKER_LOCKED_BASE, Tracker, area_line, area_region,
                       level_area, summary_lines)
 from .world import MassEffectLE1World
@@ -34,6 +35,9 @@ from .world import MassEffectLE1World
 logger = logging.getLogger("ME1Client")
 
 PIPE_NAME = r"\\.\pipe\LE1APBridge"
+# LE1APExtras (tools/le1apextras): squad level and Experience grants, next to the bridge.
+EXTRAS_PIPE_NAME = r"\\.\pipe\LE1APExtras"
+EXPERIENCE_INDEX_PLOT_INT = 2010  # Experience items granted, written only by the extras' XPTXN
 READ_BYTES = 65536  # one reply (a SNAP reply is a few KB)
 RECEIVED_INDEX_PLOT_INT = 2000  # written only by the bridge's TXN (v12)
 SEED_PLOT_INT, SLOT_PLOT_INT = 2004, 2005  # the save's seed/slot identity, written only by IDSET (0, 0 = not bound)
@@ -41,7 +45,7 @@ NONCE_PLOT_INT = 2006  # bridge v12 NONCE: marks the save the client checks befo
 # Build identity (R13): the oldest bridge and mod this client works with. The bridge answers PING with its version; the
 # release writes the mod version into DLC_MOD_ArchipelagoME1\ArchipelagoME1.version, which the bridge reads (MODVER).
 BRIDGE_VERSION = 13  # v13: a GIVE into a full inventory answers ERR full and waits (v12 lost the item)
-MOD_VERSION = "0.2.6"
+MOD_VERSION = "0.2.8"
 # An unbound save is bound to the seed only if it has at most this many checks done (a fresh career): a save from
 # another seed or a vanilla save loaded by mistake would otherwise send its progress as checks. The open start alone
 # sets 6 (live 2026-10-26: the Started checks of Feros, Liara, Noveria, UNC Cerberus, Hostage and Rogue VI).
@@ -52,6 +56,7 @@ VIRMIRE_SURVIVOR_PLOT_BOOLS = (3827, 3828)  # set by the Virmire choice, which r
 ILOS_OPEN_PLOT_BOOL = 4103  # D5: set by the client once the fragment gate (and D9) is met
 UNLOCK_CONTAINERS_PLOT_BOOL = 20190  # the bridge opens Decryption containers like plain ones while this is set
 INFINITE_SPRINT_PLOT_BOOL = 20191  # bridge v9+ (fixed in v11): sprinting never drains stamina while this is set
+TWO_SQUADMATES_PLOT_BOOL = 20194  # set while two squadmates are in the party: the mod's landing gate (Agebinium)
 # Journal "Archipelago" quest (le1mod journal): shown once JOURNAL_ACTIVE is set through its transition (bridge XST);
 # its plot items read the values below, which the client keeps current.
 JOURNAL_ACTIVE_PLOT_BOOL = 20192
@@ -316,6 +321,32 @@ class BridgeConnection:
         return presses, closes
 
 
+class ExtrasConnection(BridgeConnection):
+    """LE1APExtras' named pipe (tools/le1apextras/PROTOCOL.md): same request/reply transport, no SESSION."""
+
+    def __init__(self, pipe_name: str = EXTRAS_PIPE_NAME, opener: PipeOpener = open) -> None:
+        super().__init__(pipe_name, opener)
+
+    def squad_level(self) -> int:
+        value = self.request("LEVEL").split()
+        if len(value) != 2 or not all(part.lstrip("-").isdigit() for part in value):
+            raise BridgeProtocolError(f"LEVEL: invalid reply {value!r}")
+        return int(value[0])
+
+    def experience_index(self) -> int:
+        value = self.request("XPIDX")
+        if not value.lstrip("-").isdigit():
+            raise BridgeProtocolError(f"XPIDX: invalid index {value!r}")
+        return int(value)
+
+    def experience_transaction(self, identity: tuple[int, int], index: int, amount: int) -> bool:
+        """Grant Experience item `index` (XPTXN); True if applied now, False if the save already had it."""
+        value = self.request(f"XPTXN {identity[0]} {identity[1]} {index} {amount}")
+        if value not in {"applied", "done"}:
+            raise BridgeProtocolError(f"XPTXN {index}: unexpected reply {value!r}")
+        return value == "applied"
+
+
 def notice_text(text: str) -> str:
     """ASCII and single-line, so any slot or item name fits the bridge's NOTE request."""
     folded = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
@@ -438,8 +469,13 @@ class ItemBridge(Protocol):
 
 GEAR_BY_ITEM_ID = {ITEM_NAME_TO_ID[line.name]: line for line in GEAR_LINES}
 UPGRADE_ITEM_ID = ITEM_NAME_TO_ID[UPGRADE]
-# Bridge RES types: 0 credits, 1 medigel, 2 salvage (omni-gel), 3 grenades. Credits scale with the gear level.
+EXPERIENCE_ITEM_ID = ITEM_NAME_TO_ID[EXPERIENCE]
+# Bridge RES types: 0 credits, 1 medigel, 2 salvage (omni-gel), 3 grenades. Credits are the game's LargeReward at the
+# squad level (LE1APExtras LEVEL), or CREDITS_PER_LEVEL times the gear level when the squad level is unknown.
 CREDITS_PER_LEVEL = 500
+CREDITS_REWARD_COLUMN = CREDIT_REWARDS_COLUMNS.index("LargeReward")
+# experience_size option value -> its LevelUp_Experience column
+EXPERIENCE_COLUMNS = tuple(XP_REWARDS_COLUMNS.index(name) for name in ("MinorQuest", "MediumQuest", "MajorQuest", "MainPlot"))
 RESOURCE_ITEMS = {
     ITEM_NAME_TO_ID["Credits"]: (0, None),
     ITEM_NAME_TO_ID["Omni-Gel"]: (2, 10),
@@ -461,8 +497,24 @@ def upgrade_row(seed_name: str, index: int) -> int:
     return UPGRADE_ROWS[random.Random(f"{seed_name}:{index}").randrange(len(UPGRADE_ROWS))]
 
 
+def level_row(table: Sequence[Sequence[int]], squad_level: int) -> Sequence[int]:
+    """A level-up table's row for `squad_level`, clamped to the table."""
+    return table[min(max(squad_level, 1), len(table)) - 1]
+
+
+def credits_amount(squad_level: int | None, gear: int) -> int:
+    if squad_level is None:
+        return CREDITS_PER_LEVEL * gear
+    return level_row(CREDIT_REWARDS, squad_level)[CREDITS_REWARD_COLUMN]
+
+
+def experience_amount(squad_level: int, size: int) -> int:
+    """XP for one Experience item: the game's quest reward of `size` (experience_size) at the squad level."""
+    return level_row(XP_REWARDS, squad_level)[EXPERIENCE_COLUMNS[size]]
+
+
 def delivery_op(item_id: int, index: int, gear_seen: int, gear_total: int, seed_name: str,
-                log: logging.Logger = logger) -> str:
+                log: logging.Logger = logger, squad_level: int | None = None) -> str:
     """The TXN delivery for one received item (plot flag, gear, resource, or NONE for what only the client counts)."""
     level = gear_level(gear_seen, gear_total)
     if (plot_bool := plot_bool_for_item(item_id)) is not None:
@@ -473,9 +525,11 @@ def delivery_op(item_id: int, index: int, gear_seen: int, gear_total: int, seed_
         return f"GIVE {upgrade_row(seed_name, index)} {level} {NO_MANUFACTURER}"
     if (resource := RESOURCE_ITEMS.get(item_id)) is not None:
         kind, amount = resource
-        return f"RES {kind} {amount if amount is not None else CREDITS_PER_LEVEL * level}"
+        return f"RES {kind} {amount if amount is not None else credits_amount(squad_level, level)}"
     if item_id == FRAGMENT_ITEM_ID:
         log.info("Received a Prothean Beacon Fragment (counted by the client for the Ilos gate)")
+    elif item_id == EXPERIENCE_ITEM_ID:
+        pass  # granted by sync_experience through LE1APExtras
     else:
         log.info("Received unsupported item %s; skipping game write", item_id)
     return "NONE"
@@ -490,6 +544,7 @@ def sync_received_items(
     *,
     identity: tuple[int, int],
     on_full: Callable[[int], None] | None = None,
+    squad_level: int | None = None,
 ) -> int:
     """Deliver items after the save's durable received index, one TXN each, and return the new index.
 
@@ -513,7 +568,7 @@ def sync_received_items(
     gear_seen = sum(1 for item in received_items[:start_index] if item.item in GEAR_BY_ITEM_ID)
     for index in range(start_index, len(received_items)):
         item_id = received_items[index].item
-        delivery = delivery_op(item_id, index, gear_seen, gear_total, seed_name, log)
+        delivery = delivery_op(item_id, index, gear_seen, gear_total, seed_name, log, squad_level)
         try:
             if not bridge.transaction(identity, index, delivery):
                 log.info("Received item %s was already in the save (retry after a lost reply)", index)
@@ -529,6 +584,34 @@ def sync_received_items(
     return len(received_items)
 
 
+class ExperienceBridge(Protocol):
+    def experience_index(self) -> int: ...
+
+    def experience_transaction(self, identity: tuple[int, int], index: int, amount: int) -> bool: ...
+
+
+def sync_experience(extras: ExperienceBridge, received_items: Sequence[ReceivedItem], delivered: int, squad_level: int,
+                    size: int, *, identity: tuple[int, int], log: logging.Logger = logger) -> int:
+    """Grant the Experience items among the first `delivered` received items that the save has not had yet, one XPTXN
+    each, and return how many are still waiting. The extras keep their own index (EXPERIENCE_INDEX_PLOT_INT) and grant
+    and advance it in one game-thread step, so a grant is never repeated; one that waits (no extras, a save made between
+    the bridge's TXN and the grant) is granted on a later poll, at the squad level of that moment."""
+    owed = sum(1 for item in received_items[:delivered] if item.item == EXPERIENCE_ITEM_ID)
+    granted = extras.experience_index()
+    if granted > owed:
+        log.warning("Save has %s Experience items granted, more than the %s received; leaving it unchanged", granted, owed)
+        return 0
+    for index in range(granted, owed):
+        amount = experience_amount(squad_level, size)
+        try:
+            if extras.experience_transaction(identity, index, amount):
+                log.info("Experience: +%s XP (squad level %s)", amount, squad_level)
+        except DeliveryGapError as error:  # the save changed under us: the next poll starts from its index
+            log.warning("Experience paused, the save's Experience index changed: %s", error)
+            return owed - index
+    return 0
+
+
 def sync_human_squad(bridge: ItemBridge) -> bool:
     """Put Kaidan and Ashley in the party (human_squad_at_citadel: they are not items), until the Virmire choice."""
     if any(bridge.get_bool(index) for index in VIRMIRE_SURVIVOR_PLOT_BOOLS):
@@ -540,6 +623,16 @@ def sync_human_squad(bridge: ItemBridge) -> bool:
             bridge.set_bool(index, True)
             added = True
     return added
+
+
+def sync_two_squadmates(bridge: ItemBridge, in_party: PlotReader) -> bool:
+    """Keep TWO_SQUADMATES_PLOT_BOOL equal to "two or more InParty bools are set" (read from `in_party`); True if
+    written."""
+    value = sum(in_party.get_bool(index) for index in SQUAD_INPARTY_PLOT_BOOL.values()) >= 2
+    if bridge.get_bool(TWO_SQUADMATES_PLOT_BOOL) == value:
+        return False
+    bridge.set_bool(TWO_SQUADMATES_PLOT_BOOL, value)
+    return True
 
 
 def sync_ilos_gate(
@@ -600,9 +693,11 @@ def evaluate_location_predicates(bridge: PlotReader) -> set[int]:
 
 
 def _snap_spec() -> tuple[tuple[tuple[int, int], ...], tuple[int, ...]]:
-    """What SNAP reads: every location predicate's bools (as one vanilla and one AP range), the goal, and the ints."""
+    """What SNAP reads: every location predicate's bools (as one vanilla and one AP range), the goal, the InParty
+    bools, and the ints."""
     bools = {index for predicate in LOCATION_PREDICATES.values() if predicate.kind == "bool" for index in predicate.indices}
     bools.add(GOAL_PLOT_BOOL)
+    bools.update(SQUAD_INPARTY_PLOT_BOOL.values())  # sync_two_squadmates
     vanilla, ours = [index for index in bools if index < 20000], [index for index in bools if index >= 20000]
     ranges = [(0, max(vanilla) + 1)] + ([(min(ours), max(ours) - min(ours) + 1)] if ours else [])
     ints = {predicate.indices[0] for predicate in LOCATION_PREDICATES.values() if predicate.kind == "int"}
@@ -689,14 +784,19 @@ class ME1Context(CommonContext):
     bind_requested = False  # /bind: adopt the loaded save of an older client (it has items but no identity)
     _last_bridge_error = ""  # a new bridge error is logged even while the bridge is already marked unavailable
     _refusal_reported: str | None = None  # the identity or build refusal last logged (each is logged once)
+    extras: ExtrasConnection | None = None  # LE1APExtras
+    experience_size = 2  # experience_size from slot data (major_quest)
+    _extras_problem: str | None = None  # the LE1APExtras problem last logged (each is logged once)
 
     def __init__(
         self,
         server_address: str | None,
         password: str | None,
         bridge: BridgeConnection | None = None,
+        extras: ExtrasConnection | None = None,
     ) -> None:
         self.bridge = bridge or BridgeConnection()
+        self.extras = extras or ExtrasConnection()
         self._bridge_ready: bool | None = None
         self.fragments_required: int | None = None
         self.infinite_sprint = False  # from slot data on Connected
@@ -725,6 +825,7 @@ class ME1Context(CommonContext):
             self.shop_slots = slot_data.get("shop_slots")
             self.mako_shuffled = bool(slot_data.get("mako_shuffled", False))
             self.human_squad_at_citadel = bool(slot_data.get("human_squad_at_citadel", False))
+            self.experience_size = int(slot_data.get("experience_size", 2))
             self._fragments_noticed = None
             self._last_area = None
             self.shop_scouted = self.shop_labels_sent = False
@@ -897,13 +998,16 @@ class ME1Context(CommonContext):
             if not self._check_identity(identity, snapshot):
                 return set(), False
             items = tuple(self.items_received)
+            squad_level = self._squad_level()
             waiting: list[int] = []
             delivered = sync_received_items(self.bridge, items, gear_total=self.gear_total,
                                             seed_name=getattr(self, "seed_name", None) or "", identity=identity,
-                                            on_full=waiting.append)
+                                            on_full=waiting.append, squad_level=squad_level)
             self._inventory_full_notice(waiting[0] if waiting else 0, delivered == len(items))
+            self._sync_experience(items, delivered, identity, squad_level)
             if self.human_squad_at_citadel and sync_human_squad(self.bridge):
                 logger.info("Kaidan and Ashley joined the party (Kaidan and Ashley Join at the Citadel)")
+            sync_two_squadmates(self.bridge, snapshot)
             if self.unlock_containers and not self.bridge.get_bool(UNLOCK_CONTAINERS_PLOT_BOOL):
                 self.bridge.set_bool(UNLOCK_CONTAINERS_PLOT_BOOL, True)
                 logger.info("Unlock Containers: Decryption containers now open like plain ones")
@@ -944,6 +1048,40 @@ class ME1Context(CommonContext):
                 self.notices.clear()
                 self.sends_pending.clear()
         return true_locations, goal_complete
+
+    def _extras_unavailable(self, problem: str) -> None:
+        if self._extras_problem != problem:
+            self._extras_problem = problem
+            logger.warning("LE1APExtras: %s", problem)
+        if self.extras is not None:
+            self.extras.close()
+
+    def _squad_level(self) -> int | None:
+        """The squad level from LE1APExtras, or None without it (credits then scale with the gear level)."""
+        if self.extras is None:
+            return None
+        try:
+            level = self.extras.squad_level()
+        except (BridgeError, OSError) as error:
+            self._extras_unavailable(f"unavailable ({error}); Experience items wait, credits scale with gear")
+            return None
+        if self._extras_problem is not None:
+            logger.info("LE1APExtras connected (squad level %s)", level)
+            self._extras_problem = None
+        return level
+
+    def _sync_experience(self, items: Sequence, delivered: int, identity: tuple[int, int], squad_level: int | None) -> None:
+        """Grant delivered Experience items through LE1APExtras; without it they wait (told once per count)."""
+        if not any(item.item == EXPERIENCE_ITEM_ID for item in items[:delivered]):
+            return
+        if squad_level is None:
+            self._extras_unavailable("not installed or not running: Experience items wait for it (install the bridge "
+                                     "zip of this release)")
+            return
+        try:
+            sync_experience(self.extras, items, delivered, squad_level, self.experience_size, identity=identity)
+        except (BridgeError, OSError) as error:
+            self._extras_unavailable(f"Experience delivery paused ({error})")
 
     def _inventory_full_notice(self, waiting: int, all_delivered: bool) -> None:
         """Tell the player once per count while gear waits for room, and once when the waiting items arrived. Each HUD
@@ -1082,6 +1220,8 @@ class ME1Context(CommonContext):
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
         finally:
             self.bridge.close()
+            if self.extras is not None:
+                self.extras.close()
 
 
 async def _main(args: argparse.Namespace) -> None:

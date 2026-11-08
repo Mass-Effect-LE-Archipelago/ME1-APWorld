@@ -31,7 +31,7 @@ sealed class GameProfile
         Id = "ME1", Title = "Mass Effect 1", GameFolder = "ME1", Exe = "MassEffect1.exe", ProcessName = "MassEffect1",
         DlcName = "DLC_MOD_ArchipelagoME1", ModFolder = "ArchipelagoME1", Apworld = "mass_effect_le1.apworld",
         Client = "Mass Effect LE1 Client", OptionsResource = "options-me1.json", ModManagerGame = "LE1",
-        AsiFiles = ["LE1APBridge.asi", "LE1APBridge.checks.tsv"], OldAsiPatterns = ["LE1APBridge*.asi"],
+        AsiFiles = ["LE1APBridge.asi", "LE1APBridge.checks.tsv", "LE1APExtras.asi"], OldAsiPatterns = ["LE1APBridge*.asi"],
         RequiredAsis = [("LE1AutoloadEnabler*.asi", "LE1 Autoload Enabler")],
         OptionalMovies = [("GLO_01_Relay.bik", "Skip the mass relay jump video"), ("UCW_Loading_Flyby.bik", "Skip the FTL flyby video")],
         ModVersionFile = "ArchipelagoME1.version", Toc = TocMode.Le1Basegame, Loader = LoaderMode.RequireExisting,

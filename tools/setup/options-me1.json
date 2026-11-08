@@ -1,6 +1,6 @@
 {
  "game": "Mass Effect Legendary Edition 1",
- "world_version": "0.2.7",
+ "world_version": "0.2.8",
  "minimum_ap_version": "0.6.8",
  "groups": [
   {
@@ -148,22 +148,53 @@
    "name": "Items",
    "options": [
     {
-     "key": "gear_pool",
-     "display": "Gear Items",
-     "doc": "How many gear items (one manufacturer's weapon, armor, bio-amp or omni-tool line each) are drawn into the pool.\n\nEvery category is represented; about one in twenty is Spectre gear. Gear arrives at a level that climbs from I to X\nas you collect it (Spectre gear is always X). Lowered to the free room in the pool, and to at most 228 (every\nnon-Spectre line plus Spectre gear at one in twenty): higher values give 228.",
+     "key": "useful_share",
+     "display": "Useful Item Share",
+     "doc": "Percent of the free slots (those left after progression that may hold useful items) that get a useful item:\ngear, a Random Upgrade or Experience, picked at random by the weights below. The rest get filler (mostly credits).\nA share, so it follows how many checks the other options turn on.",
      "type": "range",
-     "default": 80,
-     "min": 0,
-     "max": 243
-    },
-    {
-     "key": "upgrade_count",
-     "display": "Random Upgrades",
-     "doc": "How many Random Upgrade items (a weapon, ammo, armor or grenade mod) are in the pool. Lowered to the free room\nleft after gear.",
-     "type": "range",
-     "default": 20,
+     "default": 55,
      "min": 0,
      "max": 100
+    },
+    {
+     "key": "gear_weight",
+     "display": "Gear Weight",
+     "doc": "Weight of gear among useful items: one manufacturer's weapon, armor, bio-amp or omni-tool line each. Every\ncategory is represented; about one in twenty is Spectre gear. Gear arrives at a level that climbs from I to X as\nyou collect it (Spectre gear is always X). At most 227 gear items: past that, the other weights share the rest.",
+     "type": "range",
+     "default": 50,
+     "min": 0,
+     "max": 100
+    },
+    {
+     "key": "upgrade_weight",
+     "display": "Random Upgrade Weight",
+     "doc": "Weight of Random Upgrades (a weapon, ammo, armor or grenade mod at the current gear level) among useful items.",
+     "type": "range",
+     "default": 25,
+     "min": 0,
+     "max": 100
+    },
+    {
+     "key": "experience_weight",
+     "display": "Experience Weight",
+     "doc": "Weight of Experience among useful items. Each one gives the squad XP scaled to its level, like a quest reward\n(Experience Size). Needs the LE1APExtras ASI (installed with the bridge); without it, Experience items wait until it\nis installed.",
+     "type": "range",
+     "default": 25,
+     "min": 0,
+     "max": 100
+    },
+    {
+     "key": "experience_size",
+     "display": "Experience Size",
+     "doc": "How much XP one Experience item gives: the game's quest reward of that size at the squad's level (minor: about a\nfifth of a level early on, main_plot: about a whole level early on, a quarter of one near level 50).",
+     "type": "choice",
+     "default": "major_quest",
+     "choices": [
+      "minor_quest",
+      "medium_quest",
+      "major_quest",
+      "main_plot"
+     ]
     }
    ]
   },
@@ -187,8 +218,7 @@
    "containersanity": "off",
    "aid_stations": false,
    "shop_slots": 1,
-   "gear_pool": 40,
-   "upgrade_count": 10
+   "useful_share": 45
   },
   "Completionist": {
    "fragments_total": 8,
@@ -200,8 +230,7 @@
    "aid_stations": true,
    "unlock_containers": true,
    "shop_slots": 5,
-   "gear_pool": 120,
-   "upgrade_count": 40
+   "useful_share": 75
   }
  }
 }

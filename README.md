@@ -2,7 +2,7 @@
 
 An [Archipelago](https://archipelago.gg) multiworld randomizer for Mass Effect 1 in Mass Effect Legendary Edition.
 
-**Status: beta test (0.2.7).** It's playable from start to finish on the Steam release (English). Expect bugs.
+**Status: beta test (0.2.8).** It's playable from start to finish on the Steam release (English). Expect bugs.
 
 ## What changes
 
@@ -53,9 +53,11 @@ Open an [issue](../../issues) and include:
 - `worlds/mass_effect_le1/`: the Archipelago world (logic, items, locations, options) and the client.
 - `mod/`: the game mod (`DLC_MOD_ArchipelagoME1`); `tools/le1mod/` applies this repo's patches to it.
 - `tools/le1apbridge/`: the bridge (`LE1APBridge.asi`, built) and its checks table.
+- `tools/le1apextras/`: LE1APExtras, a small ASI next to the bridge (squad level, Experience items): source, build
+  script and the built `.asi`.
 - `tools/release/`: the release packaging script and the bridge installer.
 - `tools/setup/`: the source of Mass Effect AP Setup, the setup app.
-- `vendor/`: Archipelago and LegendaryExplorer as pinned submodules.
+- `vendor/`: Archipelago, LegendaryExplorer and LExASIs (with LExSDKv2, for LE1APExtras) as pinned submodules.
 
 ## Development
 
@@ -72,7 +74,9 @@ Set up Archipelago's environment once (Python 3.11 or newer): `python -m venv ve
 - Game mod patches: `python tools/le1mod/build_mod.py <LE1 game folder>` (see `tools/le1mod/README.md`).
 - Release: `python tools/release/build_release.py <version>` writes the apworld, the YAML template, the mod zip, the
   bridge zip and `SHA256SUMS` to `build/release-<version>/`, after checking that the packaged apworld generates.
-- Setup app: `python tools/setup/package.py <app version>` (see `tools/setup/README.md`).
+- Setup app: `python tools/setup/package.py <app version>`, then `python tools/setup/test_setup.py --exe <its exe>` (see
+  `tools/setup/README.md`; in WSL use `python3`).
+- LE1APExtras: `python tools/le1apextras/build.py` (see `tools/le1apextras/README.md`).
 
 ## Credits
 

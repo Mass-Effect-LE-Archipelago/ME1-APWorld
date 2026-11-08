@@ -6,3 +6,7 @@
 	path = vendor/LegendaryExplorer
 	url = https://github.com/ME3Tweaks/LegendaryExplorer.git
 	shallow = true
+[submodule "vendor/LExASIs"]
+	path = vendor/LExASIs
+	url = https://github.com/ME3Tweaks/LExASIs.git
+	shallow = true
