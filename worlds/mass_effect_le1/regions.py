@@ -134,6 +134,15 @@ def closes_with_mission(name: str, loc: data.LocationData) -> bool:
     return closed_after_mission(name, loc)
 
 
+# Citadel quests whose NPCs are only there while the Normandy is grounded (Keeler: F1381 Grounded and not completed;
+# the rioters: F1403 Grounded and the escape not over). The grounding plays on docking at the Citadel with Therum,
+# Feros, Noveria and Virmire done; leaving the Citadel ends the window. They hold no progression item of any game.
+GROUNDED_QUESTS = frozenset({
+    "Citadel: Negotiator's Request: Started", "Citadel: Negotiator's Request: Completed",
+    "Citadel: Our Own Worst Enemy: Started", "Citadel: Our Own Worst Enemy: Completed",
+})
+
+
 def missable_codex(name: str, loc: data.LocationData) -> bool:
     """A codex page that can be missed for good: Joker's prologue pages (MISSABLE_CODEX), and squadmate pages that need
     a dialogue or romance choice or the squadmate alive after Virmire (squad_talk.TalkGate.choice)."""
@@ -145,8 +154,9 @@ def missable_codex(name: str, loc: data.LocationData) -> bool:
 
 def no_progression_rule(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
     """Gets the no_progression_item_allowed rule: a missable codex page, a check on a planet only a morality
-    transmission opens, or a check that closes with its mission under finished_mission_checks no_progression."""
-    if location_excluded(world, name, loc):
+    transmission opens, or a check that closes with its mission under finished_mission_checks no_progression
+    (GROUNDED_QUESTS have their own)."""
+    if location_excluded(world, name, loc) or name in GROUNDED_QUESTS:
         return False
     return missable_codex(name, loc) or uncharted.location_needs_morality(name) or (
         world.options.finished_mission_checks == world.options.finished_mission_checks.option_no_progression
@@ -161,9 +171,15 @@ def no_progression_item_allowed(world: MassEffectLE1World, item: Item) -> bool:
     return item.excludable
 
 
+def missable_item_allowed(item: Item) -> bool:
+    """Whether a GROUNDED_QUESTS check may hold this item: any game's filler or useful item, never progression."""
+    return not item.advancement
+
+
 def holds_no_progression(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
-    """Never holds this world's progression: filler only (location_excluded) or no_progression_rule."""
-    return location_excluded(world, name, loc) or no_progression_rule(world, name, loc)
+    """Never holds this world's progression: filler only (location_excluded), no_progression_rule, or
+    GROUNDED_QUESTS."""
+    return location_excluded(world, name, loc) or no_progression_rule(world, name, loc) or name in GROUNDED_QUESTS
 
 
 def location_excluded(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
@@ -209,6 +225,8 @@ def create_regions(world: MassEffectLE1World) -> None:
             add_item_rule(location, lambda item: no_return_item_allowed(world, item))
         elif no_progression_rule(world, name, loc):
             add_item_rule(location, lambda item: no_progression_item_allowed(world, item))
+        elif name in GROUNDED_QUESTS:
+            add_item_rule(location, missable_item_allowed)
         regions[loc.region].locations.append(location)
 
     _add_event(world, regions[R.CITADEL], data.EVENT_ACT1)

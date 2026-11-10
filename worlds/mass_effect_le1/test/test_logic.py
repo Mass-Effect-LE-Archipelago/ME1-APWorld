@@ -3,6 +3,7 @@ from BaseClasses import Item, ItemClassification, LocationProgressType
 from ..options import options_presets
 from ..items import GEAR_MAX
 from ..squad_talk import TALK_GATES
+from ..regions import GROUNDED_QUESTS
 from . import MassEffectLE1TestBase
 
 
@@ -390,6 +391,21 @@ class TestJournalsanity(MassEffectLE1TestBase):
             choice = loc.name in TALK_GATES and TALK_GATES[loc.name].choice  # e.g. Wrex: Family Armor (Wrex can die)
             self.assertEqual(loc.progress_type == LocationProgressType.EXCLUDED, loc.name.endswith(": Completed") or choice,
                              loc.name)
+
+    def test_grounded_quests_need_every_mission_and_hold_no_progression(self) -> None:
+        useful = Item("Other Useful", ItemClassification.useful, None, self.player + 1)
+        for name in GROUNDED_QUESTS:
+            self.assertFalse(self.can_reach_location(name), name)
+            self.assertFalse(takes_own_progression(self, name), name)
+            self.assertTrue(self.multiworld.get_location(name, self.player).item_rule(useful), name)
+        events = {loc.item.name: loc.item for loc in self.multiworld.get_locations(self.player)
+                  if loc.item is not None and loc.address is None}
+        for event in (EVENT_THERUM, EVENT_FEROS, EVENT_NOVERIA):
+            self.collect(events[event])
+        self.assertFalse(self.can_reach_location("Citadel: Our Own Worst Enemy: Started"))
+        self.collect(events[EVENT_VIRMIRE])
+        for name in GROUNDED_QUESTS:
+            self.assertTrue(self.can_reach_location(name), name)
 
     def test_squad_quest_needs_its_squadmate(self) -> None:
         self.assertFalse(self.can_reach_location("Wrex: Family Armor: Started"))
