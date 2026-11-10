@@ -105,6 +105,14 @@ class UnlockContainers(DefaultOnToggle):
     display_name = "Unlock Containers"
 
 
+class ContainersNoProgression(DefaultOnToggle):
+    """Container checks (Containersanity, with their treasure rolls) hold no progression items of any game, only filler
+    and useful items. A few containers can turn out missing or unopenable, so this keeps a broken one from blocking
+    anyone's game."""
+
+    display_name = "Containers Hold No Progression"
+
+
 class UsefulShare(Range):
     """Percent of the free slots (those left after progression that may hold useful items) that get a useful item:
     gear, a Random Upgrade or Experience, picked at random by the weights below. The rest get filler (mostly credits).
@@ -217,6 +225,7 @@ class MassEffectLE1Options(PerGameCommonOptions):
     containersanity: Containersanity
     aid_stations: AidStations
     unlock_containers: UnlockContainers
+    containers_no_progression: ContainersNoProgression
     finished_mission_checks: FinishedMissionChecks
     ilos_useful_items: IlosUsefulItems
     shop_slots: ShopSlots
@@ -255,8 +264,8 @@ options_presets = {
 option_groups = [
     OptionGroup("Goal", [FragmentsTotal, FragmentsRequired]),
     OptionGroup("Logic", [RequiredSquadSize, MakoShuffled, HumanSquadAtCitadel, BringDownTheSky]),
-    OptionGroup("Checks", [Codexsanity, Journalsanity, Containersanity, AidStations, UnlockContainers, FinishedMissionChecks,
-                            IlosUsefulItems, ShopSlots]),
+    OptionGroup("Checks", [Codexsanity, Journalsanity, Containersanity, AidStations, UnlockContainers,
+                            ContainersNoProgression, FinishedMissionChecks, IlosUsefulItems, ShopSlots]),
     OptionGroup("Items", [UsefulShare, GearWeight, UpgradeWeight, ExperienceWeight, ExperienceSize]),
     OptionGroup("Quality of Life", [InfiniteSprint]),
 ]

@@ -72,6 +72,7 @@ class TestDefaults(MassEffectLE1TestBase):
 
 class TestUnchartedGates(MassEffectLE1TestBase):
     """Uncharted planets whose landing waits on a story flag (uncharted.py)."""
+    options = {"containers_no_progression": False}  # these tests use containers for the planets' own rules
 
     def collect_event(self, name: str) -> None:
         self.collect(self.multiworld.get_location(name, self.player).item)
@@ -162,7 +163,7 @@ class TestUnchartedGates(MassEffectLE1TestBase):
 
 
 class TestFinishedMissionsAnyItem(MassEffectLE1TestBase):
-    options = {"finished_mission_checks": "any_item"}
+    options = {"finished_mission_checks": "any_item", "containers_no_progression": False}
 
     def test_finished_mission_checks_are_normal(self) -> None:
         for name in ("Therum: Ammo Pack 1", "Feros: Ammo Pack 1", "Noveria: Aid Station 1"):
@@ -170,7 +171,7 @@ class TestFinishedMissionsAnyItem(MassEffectLE1TestBase):
 
 
 class TestFinishedMissionsFillerOnly(MassEffectLE1TestBase):
-    options = {"finished_mission_checks": "filler_only"}
+    options = {"finished_mission_checks": "filler_only", "containers_no_progression": False}
 
     def test_finished_mission_checks_hold_filler_only(self) -> None:
         for name in ("Therum: Ammo Pack 1", "Feros: Ammo Pack 1", "Noveria: Aid Station 1", "Virmire: Salarian Camp Slot 1"):
@@ -372,6 +373,37 @@ class TestContainerDrops(MassEffectLE1TestBase):
             self.assertTrue(self.can_reach_location(name), name)
 
 
+class TestContainersNoProgression(MassEffectLE1TestBase):
+    options = {"containersanity": "with_drops"}
+
+    def test_containers_and_drops_hold_no_progression_of_any_game(self) -> None:
+        progression = Item("Other Progression", ItemClassification.progression, None, self.player + 1)
+        kinds = set()
+        for location in self.multiworld.get_locations(self.player):
+            kind = LOCATIONS[location.name].container if location.name in LOCATIONS else None
+            if kind in ("container", "drop"):
+                kinds.add(kind)
+                self.assertFalse(takes_own_progression(self, location.name), location.name)
+                self.assertFalse(location.item_rule(progression), location.name)
+        self.assertEqual(kinds, {"container", "drop"})
+
+    def test_plain_container_takes_any_games_useful_items(self) -> None:
+        location = self.multiworld.get_location("Klensal: Locked Secure Weapon Locker 1", self.player)
+        self.assertTrue(location.item_rule(Item("Other Useful", ItemClassification.useful, None, self.player + 1)))
+        self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))))
+
+    def test_aid_stations_are_not_affected(self) -> None:
+        station = next(name for name, loc in LOCATIONS.items() if loc.container == "station" and loc.region is Region.CITADEL)
+        self.assertTrue(takes_own_progression(self, station), station)
+
+
+class TestContainersAnyItem(MassEffectLE1TestBase):
+    options = {"containers_no_progression": False}
+
+    def test_open_containers_take_progression(self) -> None:
+        self.assertTrue(takes_own_progression(self, "Klensal: Locked Secure Weapon Locker 1"))
+
+
 class TestUnlockContainers(MassEffectLE1TestBase):
     def test_locked_containers_and_stations_are_checks_by_default(self) -> None:
         names = {loc.name for loc in self.multiworld.get_locations(self.player)}
@@ -524,6 +556,7 @@ class TestPresetCompletionist(MassEffectLE1TestBase):
 
 class TestIlosNoReturn(MassEffectLE1TestBase):
     """Ilos is a point of no return: never this world's progression; its gear by default; other games' items always."""
+    options = {"containers_no_progression": False}  # Ilos containers would otherwise refuse other games' progression
 
     def no_return_locations(self) -> list:
         return [location for region in NO_RETURN_REGIONS
@@ -553,7 +586,7 @@ class TestIlosNoReturn(MassEffectLE1TestBase):
 
 
 class TestIlosNoGear(TestIlosNoReturn):
-    options = {"ilos_useful_items": False}
+    options = {"ilos_useful_items": False, "containers_no_progression": False}
 
     def test_own_gear_and_filler(self) -> None:
         for name in (next(iter(GEAR_BY_NAME)), UPGRADE):

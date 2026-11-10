@@ -115,6 +115,13 @@
      "default": true
     },
     {
+     "key": "containers_no_progression",
+     "display": "Containers Hold No Progression",
+     "doc": "Container checks (Containersanity, with their treasure rolls) hold no progression items of any game, only filler\nand useful items. A few containers can turn out missing or unopenable, so this keeps a broken one from blocking\nanyone's game.",
+     "type": "toggle",
+     "default": true
+    },
+    {
      "key": "finished_mission_checks",
      "display": "Finished Mission Checks",
      "doc": "Eden Prime, Therum, Virmire and Asteroid X57 close for good once their mission is finished, so checks left behind\nthere are lost. Feros and Noveria close in part: afterwards only Zhu's Hope and Port Hanshan can be revisited.\n\nno_progression: their containers hold no progression items: this game's gear, upgrades and filler, and other games'\nfiller. Leaving one behind can cost gear, never progress.\nfiller_only: they hold filler only, so nothing useful can be lost.\nany_item: they can hold anything; collect everything there before finishing those missions.\nCodex pages only found there never hold progression items (missable codex pages); filler_only makes them filler.",

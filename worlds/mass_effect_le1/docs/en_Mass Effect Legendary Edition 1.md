@@ -45,7 +45,9 @@ Reach Ilos, follow Saren through the Conduit, and defeat Saren and Sovereign on 
 - Codex pages (codexsanity).
 - Journal entries: each quest's first entry and its completion (journalsanity). Completions can be missed by story
   choices, so they only hold filler.
-- Containers and Aid Stations (containersanity), optionally once per treasure roll.
+- Containers and Aid Stations (containersanity), optionally once per treasure roll. By default containers hold no
+  progression items, only filler and useful items from any game (containers_no_progression): a few containers can
+  turn out missing or unopenable.
 - Shop slots (shop_slots, 3 per merchant by default): extra entries in the stock of ten merchants on the Normandy, the
   Citadel, Noveria, Feros and Virmire, a few hundred credits each. Buying one sends its item. While the client is
   connected, each entry shows the item it holds (for example "Link's Hookshot"), and its description says who it is for

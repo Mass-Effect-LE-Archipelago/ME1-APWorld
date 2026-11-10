@@ -197,6 +197,12 @@ def missable(name: str) -> bool:
     return name in MISSABLE_CODEX or name in GROUNDED_QUESTS
 
 
+def container_holds_no_progression(world: MassEffectLE1World, loc: data.LocationData) -> bool:
+    """A container or treasure-roll check under containers_no_progression: holds no progression item of any game (some
+    containers turn out missing or unopenable)."""
+    return bool(world.options.containers_no_progression) and loc.container in ("container", "drop")
+
+
 def no_progression_rule(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
     """Gets the no_progression_item_allowed rule: a check on a planet only a morality transmission opens, or a check
     that closes with its mission under finished_mission_checks no_progression (a missable check has its own)."""
@@ -221,9 +227,10 @@ def missable_item_allowed(item: Item) -> bool:
 
 
 def holds_no_progression(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
-    """Never holds this world's progression: filler only (location_excluded), no_progression_rule, or a missable
-    check."""
-    return location_excluded(world, name, loc) or no_progression_rule(world, name, loc) or missable(name)
+    """Never holds this world's progression: filler only (location_excluded), no_progression_rule, a missable check,
+    or container_holds_no_progression."""
+    return (location_excluded(world, name, loc) or no_progression_rule(world, name, loc) or missable(name)
+            or container_holds_no_progression(world, loc))
 
 
 def location_excluded(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
@@ -271,6 +278,8 @@ def create_regions(world: MassEffectLE1World) -> None:
             add_item_rule(location, lambda item: no_progression_item_allowed(world, item))
         elif missable(name):
             add_item_rule(location, missable_item_allowed)
+        if container_holds_no_progression(world, loc):
+            add_item_rule(location, missable_item_allowed)  # on top of the rules above
         regions[loc.region].locations.append(location)
 
     _add_event(world, regions[R.CITADEL], data.EVENT_ACT1)
