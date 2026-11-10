@@ -1,7 +1,7 @@
 from ..data import COORDINATES, EVENT_ACT1, EXPERIENCE, EVENT_FEROS, EVENT_THERUM, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, MAKO, NO_RETURN_REGIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
 from BaseClasses import Item, ItemClassification, LocationProgressType
 from ..options import options_presets
-from ..items import GEAR_MAX
+from ..items import EXTRA_GEAR_MANUFACTURERS, GEAR_MAX, gear_lines, gear_max
 from ..squad_talk import TALK_GATES
 from ..regions import AUTOMATIC_CODEX, GROUNDED_QUESTS, MISSABLE_CODEX
 from . import MassEffectLE1TestBase
@@ -282,6 +282,28 @@ class TestGearOnly(MassEffectLE1TestBase):
         self.assertEqual(names.count(UPGRADE) + names.count(EXPERIENCE), 0)
         self.assertLessEqual(self.world.gear_total, GEAR_MAX)
         self.assertEqual(len(set(name for name in names if name in GEAR_BY_NAME)), self.world.gear_total)
+
+
+class TestExtraGearOff(MassEffectLE1TestBase):
+    options = {"useful_share": 100, "upgrade_weight": 0, "experience_weight": 0}
+
+    def test_extra_gear_stays_out_by_default(self) -> None:
+        gear = [GEAR_BY_NAME[item.name] for item in self.multiworld.itempool if item.name in GEAR_BY_NAME]
+        self.assertTrue(gear)
+        self.assertFalse(any(line.manufacturer_row in EXTRA_GEAR_MANUFACTURERS for line in gear))
+        self.assertLessEqual(self.world.gear_total, gear_max(gear_lines(extra=False)))
+
+    def test_extra_gear_is_forty_lines(self) -> None:
+        self.assertEqual(len(gear_lines(extra=True)) - len(gear_lines(extra=False)), 40)
+        self.assertEqual((gear_max(gear_lines(extra=False)), GEAR_MAX), (185, 227))
+
+
+class TestExtraGearOn(MassEffectLE1TestBase):
+    options = {"useful_share": 100, "upgrade_weight": 0, "experience_weight": 0, "extra_gear": True}
+
+    def test_extra_gear_can_be_drawn(self) -> None:
+        gear = [GEAR_BY_NAME[item.name] for item in self.multiworld.itempool if item.name in GEAR_BY_NAME]
+        self.assertTrue(any(line.manufacturer_row in EXTRA_GEAR_MANUFACTURERS for line in gear))
 
 
 class TestGearSpread(MassEffectLE1TestBase):

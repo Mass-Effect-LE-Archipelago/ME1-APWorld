@@ -127,12 +127,21 @@ class UsefulShare(Range):
 class GearWeight(Range):
     """Weight of gear among useful items: one manufacturer's weapon, armor, bio-amp or omni-tool line each. Every
     category is represented; about one in twenty is Spectre gear. Gear arrives at a level that climbs from I to X as
-    you collect it (Spectre gear is always X). At most 227 gear items: past that, the other weights share the rest."""
+    you collect it (Spectre gear is always X). At most 185 gear items (227 with Extra Gear): past that, the other weights
+    share the rest."""
 
     display_name = "Gear Weight"
     range_start = 0
     range_end = 100
     default = 50
+
+
+class ExtraGear(Toggle):
+    """Gear from Batarian State Arms, Cerberus Skunkworks, Jormangund Technology and HK Shadow Works can be in the pool
+    (16 weapons, 24 armors). The game's own loot only offers these behind its DLC1-DLC4 flags, and their stats can be
+    unusual: weapons showing 0 damage and accuracy, strong low-level armor."""
+
+    display_name = "Extra Gear"
 
 
 class UpgradeWeight(Range):
@@ -231,6 +240,7 @@ class MassEffectLE1Options(PerGameCommonOptions):
     shop_slots: ShopSlots
     useful_share: UsefulShare
     gear_weight: GearWeight
+    extra_gear: ExtraGear
     upgrade_weight: UpgradeWeight
     experience_weight: ExperienceWeight
     experience_size: ExperienceSize
@@ -266,6 +276,6 @@ option_groups = [
     OptionGroup("Logic", [RequiredSquadSize, MakoShuffled, HumanSquadAtCitadel, BringDownTheSky]),
     OptionGroup("Checks", [Codexsanity, Journalsanity, Containersanity, AidStations, UnlockContainers,
                             ContainersNoProgression, FinishedMissionChecks, IlosUsefulItems, ShopSlots]),
-    OptionGroup("Items", [UsefulShare, GearWeight, UpgradeWeight, ExperienceWeight, ExperienceSize]),
+    OptionGroup("Items", [UsefulShare, GearWeight, ExtraGear, UpgradeWeight, ExperienceWeight, ExperienceSize]),
     OptionGroup("Quality of Life", [InfiniteSprint]),
 ]
