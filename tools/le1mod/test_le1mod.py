@@ -149,6 +149,15 @@ class TestStoryRecruitment(unittest.TestCase):
         again = conversation.node_condition(names, data, "m_EntryList", 1)
         self.assertEqual((again.func, again.fire, again.param), (20102, False, 1))
         self.assertEqual(conversation.node_condition(names, data, "m_EntryList", 0).func, -1)
+        self.assertEqual(conversation.property_offset(names, data, "m_EntryList"), 4 + 24)
+        with self.assertRaises(KeyError):
+            conversation.property_offset(names, data, "nStateTransition")  # inside the array, not top level
+
+    def test_kismet_checks_name_their_bools(self) -> None:
+        for checks in build_mod.KISMET_CHECKS.values():
+            for full_name, old, new in checks:
+                self.assertIn(".BioSeqAct_PMCheckState_", full_name)
+                self.assertEqual((old, new), (build_mod.ASHLEY_IN_PARTY, build_mod.ASHLEY_RECRUITED))
 
 
 @unittest.skipUnless(os.environ.get("LE1_GAME"), "set LE1_GAME to the LE1 game folder")
