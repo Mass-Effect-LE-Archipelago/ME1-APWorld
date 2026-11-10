@@ -52,15 +52,19 @@ Reach Ilos, follow Saren through the Conduit, and defeat Saren and Sovereign on 
   and whether it is progression; otherwise it shows as "Archipelago Item".
 
 Uncharted worlds, derelict freighters and side-assignment transmissions count as available after the Citadel's first
-act, with the Mako. Squadmates have new things to say on the Normandy after a finished mission or every third uncharted-
-world landing, so codex pages and quests from their later conversations count as available once you can land on
-uncharted worlds. Kaidan's and Ashley's conversations also wait for Therum, Feros or Noveria to be finished. Kaidan,
-Ashley and Wrex can die on Virmire, so codex pages only they give hold no progression items (this game's gear can be
-there) and quests only they give hold filler only. Our Own Worst Enemy and Negotiator's Request only happen on the
-Citadel while the Normandy is grounded (from the grounding, once Therum, Feros, Noveria and Virmire are done, until the
-escape), so they hold no progression items: only filler and useful items from any game. The same goes for Joker's
-prologue pages, which are only there until you meet Udina on the Citadel, and for Chohe and Nonuel, whose star systems
-only appear after the 75% Paragon or Renegade transmission.
+act, with the Mako. Squadmates have new things to say on the Normandy after a finished mission or every third
+uncharted-world landing, so codex pages and quests from their later conversations count as available once you can land
+on uncharted worlds. Kaidan's and Ashley's conversations also wait for Therum, Feros or Noveria to be finished.
+Codex pages the story gives on its own (the Council, Sovereign, Husks and the like) are not checks. Codex pages that can
+be missed for good hold no progression items, only filler and useful items from any game: pages only Kaidan, Ashley or
+Wrex give (they can die on Virmire), Liara's pages other than Culture (her talks end once the Normandy is grounded,
+which docking at the Citadel with Therum, Feros, Noveria and Virmire done does), Tali's Religion page (before her geth
+quest ends), Garrus's Religion page, Joker's prologue pages (only there until you meet Udina on the Citadel), Adams'
+first-conversation pages, Carriers, and pages only found in a closing mission. Quests only Kaidan, Ashley or Wrex give
+hold filler only. Our Own Worst Enemy and Negotiator's Request only happen on the Citadel while the Normandy is grounded
+(from the grounding, once Therum, Feros, Noveria and Virmire are done, until the escape), so they hold no progression
+items either. Checks on Chohe and Nonuel, whose star systems only appear after the 75% Paragon or Renegade transmission,
+hold no progression items.
 
 Eden Prime, Therum, Virmire and Asteroid X57 close for good once finished, and Feros and Noveria close in part (afterwards
 only Zhu's Hope and Port Hanshan can be revisited). By default their containers hold no progression items: this game's

@@ -41,7 +41,7 @@ class MassEffectLE1World(World):
         # Locations that never take this world's progression (regions.holds_no_progression, and Ilos, the point of no
         # return) don't count as room for it.
         location_count = sum(1 for name, loc in data.LOCATIONS.items()
-                             if regions.location_included(self, loc)
+                             if regions.location_included(self, name, loc)
                              and not regions.holds_no_progression(self, name, loc)
                              and loc.region not in data.NO_RETURN_REGIONS)
         squad_items = len(data.SQUAD) - (len(data.HUMAN_SQUAD) if self.options.human_squad_at_citadel else 0)

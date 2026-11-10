@@ -3,7 +3,7 @@ from BaseClasses import Item, ItemClassification, LocationProgressType
 from ..options import options_presets
 from ..items import GEAR_MAX
 from ..squad_talk import TALK_GATES
-from ..regions import GROUNDED_QUESTS
+from ..regions import AUTOMATIC_CODEX, GROUNDED_QUESTS, MISSABLE_CODEX
 from . import MassEffectLE1TestBase
 
 
@@ -114,7 +114,7 @@ class TestUnchartedGates(MassEffectLE1TestBase):
                      "Codex: Aliens: Non-Council Races: Geth", "Asteroid X57: Grenade Storage Box 13"):
             self.assertFalse(takes_own_progression(self, name), name)
         for name in ("Therum: Rescue Liara", "Virmire: The Survivor", "Eden Prime: Beacon Vision",
-                     "Codex: Aliens: Non-Sapient Creatures: Husks", "Asteroid X57: Bring Down the Sky"):  # on the way, or also found elsewhere: normal
+                     "Asteroid X57: Bring Down the Sky"):  # on the way: normal
             self.assertTrue(takes_own_progression(self, name), name)
 
     def test_finished_missions_take_gear_but_not_others_useful_items(self) -> None:
@@ -298,7 +298,7 @@ class TestGearSpread(MassEffectLE1TestBase):
 class TestCodexsanity(MassEffectLE1TestBase):
     def test_full_codex_is_in_and_squad_pages_need_the_squadmate(self) -> None:
         codex = [loc for loc in self.multiworld.get_locations(self.player) if loc.name.startswith("Codex: ")]
-        self.assertEqual(len(codex), 119)
+        self.assertEqual(len(codex), 104)  # 120 pages, less BDtS's and the 15 the story gives on its own
         page = next(name for name, loc in LOCATIONS.items() if loc.squad == "Liara T'Soni" and name not in TALK_GATES)
         self.assertFalse(self.can_reach_location(page))
         self.collect_by_name(["Liara T'Soni"])
@@ -307,13 +307,34 @@ class TestCodexsanity(MassEffectLE1TestBase):
     def test_uncharted_waits_for_act1(self) -> None:
         self.assertFalse(self.can_reach_region(Region.UNCHARTED.value))
 
+    def test_automatic_pages_are_not_locations(self) -> None:
+        names = {loc.name for loc in self.multiworld.get_locations(self.player)}
+        for name in AUTOMATIC_CODEX:
+            self.assertIn(name, LOCATIONS)
+            self.assertNotIn(name, names)
+
+    def test_missable_pages_hold_filler_or_useful_of_any_game(self) -> None:
+        useful = Item("Other Useful", ItemClassification.useful, None, self.player + 1)
+        progression = Item("Other Progression", ItemClassification.progression, None, self.player + 1)
+        for name in MISSABLE_CODEX:
+            location = self.multiworld.get_location(name, self.player)
+            self.assertFalse(takes_own_progression(self, name), name)
+            self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))), name)
+            self.assertTrue(location.item_rule(useful), name)
+            self.assertFalse(location.item_rule(progression), name)
+
+    def test_other_pages_take_progression(self) -> None:
+        for location in self.multiworld.get_locations(self.player):
+            if location.name.startswith("Codex: ") and location.name not in MISSABLE_CODEX:
+                self.assertTrue(takes_own_progression(self, location.name), location.name)
+
 
 class TestCodexsanityStory(MassEffectLE1TestBase):
     options = {"codexsanity": "story"}
 
     def test_only_story_pages(self) -> None:
         codex = [loc.name for loc in self.multiworld.get_locations(self.player) if loc.name.startswith("Codex: ")]
-        self.assertEqual(len(codex), 94)
+        self.assertEqual(len(codex), 79)
         self.assertTrue(all(LOCATIONS[name].codex == "story" for name in codex))
 
 
@@ -578,21 +599,18 @@ class TestSquadTalk(MassEffectLE1TestBase):
                                ("Codex: Ships and Vehicles: Space Combat: Planetary Assaults", True),
                                ("Codex: Aliens: Non-Council Races: Krogan: Culture", True),
                                ("Codex: Technology: Mass Effect Fields", False),
+                               ("Codex: Technology: Biotics", False),  # also assignment transmissions
                                ("Codex: Humanity and the Systems Alliance: Human Diplomatic Relations", False),
                                ("Codex: Weapons, Armor and Equipment: Body Armor", False),
                                ("Codex: Aliens: Non-Council Races: Krogan: Genophage", False)):
             self.assertEqual(takes_own_progression(self, name), not missable, name)
 
-    def test_choice_checks_hold_no_progression(self) -> None:
-        """Codex pages get the no-progression rule (this world's gear allowed); quests hold filler only."""
+    def test_choice_quests_are_filler_only(self) -> None:
         for name, gate in TALK_GATES.items():
             if gate.choice:
+                self.assertTrue(LOCATIONS[name].journal, name)
                 location = self.multiworld.get_location(name, self.player)
-                self.assertFalse(takes_own_progression(self, name), name)
-                page = LOCATIONS[name].codex is not None
-                self.assertEqual(location.progress_type == LocationProgressType.EXCLUDED, not page, name)
-                if page:
-                    self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))), name)
+                self.assertEqual(location.progress_type, LocationProgressType.EXCLUDED, name)
 
 
 class TestSquadTalkMakoShuffled(MassEffectLE1TestBase):

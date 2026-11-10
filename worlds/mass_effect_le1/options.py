@@ -55,8 +55,9 @@ class BringDownTheSky(DefaultOnToggle):
 class Codexsanity(Choice):
     """Codex pages are checks: unlocking a page sends it.
 
-    story: pages from the Citadel, the story planets and squadmate conversations on the Normandy (94).
-    full: also Normandy crew and terminals, uncharted worlds and side-assignment transmissions (119)."""
+    story: pages from the Citadel, the story planets and squadmate conversations on the Normandy (79).
+    full: also Normandy crew and terminals, uncharted worlds and side-assignment transmissions (104).
+    Pages the story gives on its own are not checks. Pages that can be missed for good hold no progression items."""
 
     display_name = "Codexsanity"
     option_off = 0
@@ -162,10 +163,11 @@ class FinishedMissionChecks(Choice):
     """Eden Prime, Therum, Virmire and Asteroid X57 close for good once their mission is finished, so checks left behind
     there are lost. Feros and Noveria close in part: afterwards only Zhu's Hope and Port Hanshan can be revisited.
 
-    no_progression: their containers and mission-only codex pages hold no progression items: this game's gear, upgrades
-    and filler, and other games' filler. Leaving one behind can cost gear, never progress.
+    no_progression: their containers hold no progression items: this game's gear, upgrades and filler, and other games'
+    filler. Leaving one behind can cost gear, never progress.
     filler_only: they hold filler only, so nothing useful can be lost.
-    any_item: they can hold anything; collect everything there before finishing those missions."""
+    any_item: they can hold anything; collect everything there before finishing those missions.
+    Codex pages only found there never hold progression items (missable codex pages); filler_only makes them filler."""
 
     display_name = "Finished Mission Checks"
     option_filler_only = 0

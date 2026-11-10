@@ -43,7 +43,7 @@ UNCHARTED_GATES = {  # landing conditions of gated uncharted planets (uncharted.
 def set_rules(world: MassEffectLE1World) -> None:
     # Entrance rules are set when regions are created (regions.ENTRANCES).
     for name, loc in data.LOCATIONS.items():
-        if not location_included(world, loc):
+        if not location_included(world, name, loc):
             continue
         rule = None
         if loc.needs_act1:
