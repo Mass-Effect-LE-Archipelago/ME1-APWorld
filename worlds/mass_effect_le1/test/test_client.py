@@ -1258,13 +1258,13 @@ class TestInventoryFull(unittest.TestCase):
 
 class TestSnapshot(unittest.TestCase):
     def test_round_trip(self):
-        save = bound(i2000=3, i39=20)
+        save = bound(i2000=3)
         save.bools.update({3569: True, 6530: True, 20101: True})
         snapshot = game_bridge(FakeGame(save)).snapshot()
         self.assertEqual(snapshot.identity, ID)
         self.assertTrue(snapshot.get_bool(3569) and snapshot.get_bool(6530) and snapshot.get_bool(20101))
         self.assertFalse(snapshot.get_bool(3570))
-        self.assertEqual((snapshot.get_int(2000), snapshot.get_int(39)), (3, 20))
+        self.assertEqual(snapshot.get_int(2000), 3)
         self.assertIn(LOCATION_NAME_TO_ID["Eden Prime: Beacon Vision"], evaluate_location_predicates(snapshot))
 
     def test_request_covers_every_predicate(self):

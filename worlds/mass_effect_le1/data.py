@@ -168,7 +168,6 @@ LOCATIONS: dict[str, LocationData] = {
     "Citadel: Rita's Sister": LocationData(_L + 0x11, Region.CITADEL, "bool 3899", needs_act1=True),
     "Citadel: Homecoming": LocationData(_L + 0x12, Region.CITADEL, "bool 4820", needs_act1=True),
     "Citadel: Reporter's Request": LocationData(_L + 0x13, Region.CITADEL, "bool 4948", needs_act1=True),
-    "Citadel: Scan the Keepers": LocationData(_L + 0x14, Region.CITADEL, "int 39 >= 20 (LE1 conditional 1227 All_Keepers_Scanned)", needs_act1=True),
     # Eden Prime (D2)
     "Eden Prime: Ashley Joins": LocationData(_L + 0x20, Region.EDEN_PRIME, "bool 5508 First_Time_Talked_to_Flags.Ashley"),
     "Eden Prime: Beacon Vision": LocationData(_L + 0x21, Region.EDEN_PRIME, "bool 3569 BeaconNoticed"),
