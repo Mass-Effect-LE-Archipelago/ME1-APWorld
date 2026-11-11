@@ -170,7 +170,6 @@ LOCATIONS: dict[str, LocationData] = {
     # Therum
     "Therum: Rescue Liara": LocationData(_L + 0x30, Region.THERUM, "bool 2506 Caleston_Done"),
     # Feros
-    "Feros: Retrieve Gavin's Data": LocationData(_L + 0x40, Region.FEROS, "bool 2883"),
     "Feros: Confront Shiala": LocationData(_L + 0x41, Region.FEROS, "bool 3798 or 4133"),
     "Feros: Defeat the Thorian": LocationData(_L + 0x42, Region.FEROS, "bool 2507 Feros_Done"),
     # Noveria
@@ -178,7 +177,6 @@ LOCATIONS: dict[str, LocationData] = {
     "Noveria: Rachni Queen's Fate": LocationData(_L + 0x51, Region.NOVERIA, "bool 2587 or 2588"),
     "Noveria: Confront Benezia": LocationData(_L + 0x52, Region.NOVERIA, "bool 2508 Noveria_Done"),
     # Virmire
-    "Virmire: Disable the Geth Flyers": LocationData(_L + 0x60, Region.VIRMIRE, "bool 4464"),
     "Virmire: The Survivor": LocationData(_L + 0x61, Region.VIRMIRE, "bool 3827 or 3828"),
     "Virmire: Destroy the Facility": LocationData(_L + 0x62, Region.VIRMIRE, "bool 2509 Virmire_Done"),
     # Bring Down the Sky (D6)
