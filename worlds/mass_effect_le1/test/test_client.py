@@ -91,7 +91,7 @@ class FakeBridge:
         self.transactions = []
         self.bridge_version = 13
         self.inventory_full = False  # v13: GIVE answers ERR full and the index stays
-        self.mod = "0.2.9"
+        self.mod = "0.2.10"
         self.bool_writes = []
         self.int_writes = []
         self.gives = []
@@ -1000,7 +1000,7 @@ class FakeGame:
     later, before the next request (possibly after `load` switched the save). `lost_replies` makes the next N TXNs run
     and then breaks the pipe before the reply."""
 
-    def __init__(self, save=None, *, version=13, mod="0.2.9"):
+    def __init__(self, save=None, *, version=13, mod="0.2.10"):
         self.save = save or FakeSave()
         self.version, self.mod = version, mod
         self.inventory_full = False  # v13: a GIVE answers ERR full and leaves the index
@@ -1258,13 +1258,13 @@ class TestInventoryFull(unittest.TestCase):
 
 class TestSnapshot(unittest.TestCase):
     def test_round_trip(self):
-        save = bound(i2000=3, i39=20)
+        save = bound(i2000=3)
         save.bools.update({3569: True, 6530: True, 20101: True})
         snapshot = game_bridge(FakeGame(save)).snapshot()
         self.assertEqual(snapshot.identity, ID)
         self.assertTrue(snapshot.get_bool(3569) and snapshot.get_bool(6530) and snapshot.get_bool(20101))
         self.assertFalse(snapshot.get_bool(3570))
-        self.assertEqual((snapshot.get_int(2000), snapshot.get_int(39)), (3, 20))
+        self.assertEqual(snapshot.get_int(2000), 3)
         self.assertIn(LOCATION_NAME_TO_ID["Eden Prime: Beacon Vision"], evaluate_location_predicates(snapshot))
 
     def test_request_covers_every_predicate(self):

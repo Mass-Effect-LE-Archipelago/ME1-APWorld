@@ -35,6 +35,17 @@ def _skip_property(names: list[str], data: bytes, o: int) -> tuple[str | None, s
     return name, kind, value, value + size
 
 
+def property_offset(names: list[str], data: bytes, name: str) -> int:
+    """Offset of the value of top-level property `name` in an export's data (which starts at the net index)."""
+    o = 4
+    while True:
+        found, _kind, value, o = _skip_property(names, data, o)
+        if found is None:
+            raise KeyError(f"no {name}")
+        if found == name:
+            return value
+
+
 def node_fields(names: list[str], data: bytes, list_name: str, index: int, fields: tuple[str, ...]) -> dict[str, int]:
     """Offsets of the values of `fields` in node `index` of `list_name` (m_EntryList or m_ReplyList); `data` starts at
     the net index."""

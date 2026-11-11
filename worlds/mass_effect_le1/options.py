@@ -55,8 +55,9 @@ class BringDownTheSky(DefaultOnToggle):
 class Codexsanity(Choice):
     """Codex pages are checks: unlocking a page sends it.
 
-    story: pages from the Citadel, the story planets and squadmate conversations on the Normandy (94).
-    full: also Normandy crew and terminals, uncharted worlds and side-assignment transmissions (119)."""
+    story: pages from the Citadel, the story planets and squadmate conversations on the Normandy (79).
+    full: also Normandy crew and terminals, uncharted worlds and side-assignment transmissions (104).
+    Pages the story gives on its own are not checks. Pages that can be missed for good hold no progression items."""
 
     display_name = "Codexsanity"
     option_off = 0
@@ -104,6 +105,14 @@ class UnlockContainers(DefaultOnToggle):
     display_name = "Unlock Containers"
 
 
+class ContainersNoProgression(DefaultOnToggle):
+    """Container checks (Containersanity, with their treasure rolls) hold no progression items of any game, only filler
+    and useful items. A few containers can turn out missing or unopenable, so this keeps a broken one from blocking
+    anyone's game."""
+
+    display_name = "Containers Hold No Progression"
+
+
 class UsefulShare(Range):
     """Percent of the free slots (those left after progression that may hold useful items) that get a useful item:
     gear, a Random Upgrade or Experience, picked at random by the weights below. The rest get filler (mostly credits).
@@ -118,12 +127,21 @@ class UsefulShare(Range):
 class GearWeight(Range):
     """Weight of gear among useful items: one manufacturer's weapon, armor, bio-amp or omni-tool line each. Every
     category is represented; about one in twenty is Spectre gear. Gear arrives at a level that climbs from I to X as
-    you collect it (Spectre gear is always X). At most 227 gear items: past that, the other weights share the rest."""
+    you collect it (Spectre gear is always X). At most 185 gear items (227 with Extra Gear): past that, the other weights
+    share the rest."""
 
     display_name = "Gear Weight"
     range_start = 0
     range_end = 100
     default = 50
+
+
+class ExtraGear(Toggle):
+    """Gear from Batarian State Arms, Cerberus Skunkworks, Jormangund Technology and HK Shadow Works can be in the pool
+    (16 weapons, 24 armors). The game's own loot only offers these behind its DLC1-DLC4 flags, and their stats can be
+    unusual: weapons showing 0 damage and accuracy, strong low-level armor."""
+
+    display_name = "Extra Gear"
 
 
 class UpgradeWeight(Range):
@@ -162,10 +180,11 @@ class FinishedMissionChecks(Choice):
     """Eden Prime, Therum, Virmire and Asteroid X57 close for good once their mission is finished, so checks left behind
     there are lost. Feros and Noveria close in part: afterwards only Zhu's Hope and Port Hanshan can be revisited.
 
-    no_progression: their containers and mission-only codex pages hold no progression items: this game's gear, upgrades
-    and filler, and other games' filler. Leaving one behind can cost gear, never progress.
+    no_progression: their containers hold no progression items: this game's gear, upgrades and filler, and other games'
+    filler. Leaving one behind can cost gear, never progress.
     filler_only: they hold filler only, so nothing useful can be lost.
-    any_item: they can hold anything; collect everything there before finishing those missions."""
+    any_item: they can hold anything; collect everything there before finishing those missions.
+    Codex pages only found there never hold progression items (missable codex pages); filler_only makes them filler."""
 
     display_name = "Finished Mission Checks"
     option_filler_only = 0
@@ -215,11 +234,13 @@ class MassEffectLE1Options(PerGameCommonOptions):
     containersanity: Containersanity
     aid_stations: AidStations
     unlock_containers: UnlockContainers
+    containers_no_progression: ContainersNoProgression
     finished_mission_checks: FinishedMissionChecks
     ilos_useful_items: IlosUsefulItems
     shop_slots: ShopSlots
     useful_share: UsefulShare
     gear_weight: GearWeight
+    extra_gear: ExtraGear
     upgrade_weight: UpgradeWeight
     experience_weight: ExperienceWeight
     experience_size: ExperienceSize
@@ -253,8 +274,8 @@ options_presets = {
 option_groups = [
     OptionGroup("Goal", [FragmentsTotal, FragmentsRequired]),
     OptionGroup("Logic", [RequiredSquadSize, MakoShuffled, HumanSquadAtCitadel, BringDownTheSky]),
-    OptionGroup("Checks", [Codexsanity, Journalsanity, Containersanity, AidStations, UnlockContainers, FinishedMissionChecks,
-                            IlosUsefulItems, ShopSlots]),
-    OptionGroup("Items", [UsefulShare, GearWeight, UpgradeWeight, ExperienceWeight, ExperienceSize]),
+    OptionGroup("Checks", [Codexsanity, Journalsanity, Containersanity, AidStations, UnlockContainers,
+                            ContainersNoProgression, FinishedMissionChecks, IlosUsefulItems, ShopSlots]),
+    OptionGroup("Items", [UsefulShare, GearWeight, ExtraGear, UpgradeWeight, ExperienceWeight, ExperienceSize]),
     OptionGroup("Quality of Life", [InfiniteSprint]),
 ]

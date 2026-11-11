@@ -56,20 +56,37 @@ def create_items(world: MassEffectLE1World) -> None:
 
 
 SPECTRE_SHARE = 20  # about one gear item in twenty is Spectre gear (at least one when any gear is drawn)
-_SPECTRE_LINES = sum(1 for line in data.GEAR_LINES if line.spectre)
-_OTHER_LINES = len(data.GEAR_LINES) - _SPECTRE_LINES
-# The most distinct gear lines draw_gear can return (every non-Spectre line plus Spectre gear at one in twenty).
-GEAR_MAX = max(count for count in range(1, len(data.GEAR_LINES) + 1)
-               if min(_SPECTRE_LINES, max(1, count // SPECTRE_SHARE)) + _OTHER_LINES >= count)
+# Manufacturers whose gear only drops while one of the game's DLC1-DLC4 bools (7284-7287) is set: Batarian State Arms,
+# Cerberus Skunkworks, Jormangund Technology, HK Shadow Works (weapons 598-601, armor 587-597). In the pool only with
+# extra_gear.
+EXTRA_GEAR_MANUFACTURERS = frozenset({587, 588, 590, 591, 593, 594, 596, 597, 598, 599, 600, 601})
+
+
+def gear_lines(extra: bool) -> list[data.GearLine]:
+    """The gear lines in the pool: every line, less EXTRA_GEAR_MANUFACTURERS' unless `extra`."""
+    return [line for line in data.GEAR_LINES if extra or line.manufacturer_row not in EXTRA_GEAR_MANUFACTURERS]
+
+
+def gear_max(lines: list[data.GearLine]) -> int:
+    """The most distinct gear lines draw_gear can return from `lines` (every non-Spectre line plus Spectre gear at one
+    in twenty)."""
+    spectre = sum(1 for line in lines if line.spectre)
+    others = len(lines) - spectre
+    return max(count for count in range(1, len(lines) + 1)
+               if min(spectre, max(1, count // SPECTRE_SHARE)) + others >= count)
+
+
+GEAR_MAX = gear_max(gear_lines(extra=True))  # with extra_gear; without it, fewer
 
 
 def draw_useful(world: MassEffectLE1World, count: int) -> tuple[int, int, int]:
     """Split `count` useful items into (gear, upgrades, Experience), each item picked at random by the weight options.
-    Gear stops at GEAR_MAX; the other kinds then share the rest. Items with no weight left become filler."""
+    Gear stops at gear_max; the other kinds then share the rest. Items with no weight left become filler."""
     weights = [world.options.gear_weight.value, world.options.upgrade_weight.value, world.options.experience_weight.value]
+    most_gear = gear_max(gear_lines(bool(world.options.extra_gear)))
     counts = [0, 0, 0]
     for _ in range(count):
-        if counts[0] >= GEAR_MAX:
+        if counts[0] >= most_gear:
             weights[0] = 0
         if not any(weights):
             break
@@ -83,12 +100,13 @@ def draw_gear(world: MassEffectLE1World, count: int) -> list[str]:
     if count <= 0:
         return []
     rng = world.random
-    spectre = [line.name for line in data.GEAR_LINES if line.spectre]
+    lines = gear_lines(bool(world.options.extra_gear))
+    spectre = [line.name for line in lines if line.spectre]
     rng.shuffle(spectre)
     picked = spectre[:max(1, count // SPECTRE_SHARE)]
 
     by_category: dict[str, list[str]] = {}
-    for line in data.GEAR_LINES:
+    for line in lines:
         if not line.spectre:
             by_category.setdefault(line.category, []).append(line.name)
     queues = list(by_category.values())

@@ -1,6 +1,6 @@
 {
  "game": "Mass Effect Legendary Edition 1",
- "world_version": "0.2.9",
+ "world_version": "0.2.10",
  "minimum_ap_version": "0.6.8",
  "groups": [
   {
@@ -67,7 +67,7 @@
     {
      "key": "codexsanity",
      "display": "Codexsanity",
-     "doc": "Codex pages are checks: unlocking a page sends it.\n\nstory: pages from the Citadel, the story planets and squadmate conversations on the Normandy (94).\nfull: also Normandy crew and terminals, uncharted worlds and side-assignment transmissions (119).",
+     "doc": "Codex pages are checks: unlocking a page sends it.\n\nstory: pages from the Citadel, the story planets and squadmate conversations on the Normandy (79).\nfull: also Normandy crew and terminals, uncharted worlds and side-assignment transmissions (104).\nPages the story gives on its own are not checks. Pages that can be missed for good hold no progression items.",
      "type": "choice",
      "default": "full",
      "choices": [
@@ -115,9 +115,16 @@
      "default": true
     },
     {
+     "key": "containers_no_progression",
+     "display": "Containers Hold No Progression",
+     "doc": "Container checks (Containersanity, with their treasure rolls) hold no progression items of any game, only filler\nand useful items. A few containers can turn out missing or unopenable, so this keeps a broken one from blocking\nanyone's game.",
+     "type": "toggle",
+     "default": true
+    },
+    {
      "key": "finished_mission_checks",
      "display": "Finished Mission Checks",
-     "doc": "Eden Prime, Therum, Virmire and Asteroid X57 close for good once their mission is finished, so checks left behind\nthere are lost. Feros and Noveria close in part: afterwards only Zhu's Hope and Port Hanshan can be revisited.\n\nno_progression: their containers and mission-only codex pages hold no progression items: this game's gear, upgrades\nand filler, and other games' filler. Leaving one behind can cost gear, never progress.\nfiller_only: they hold filler only, so nothing useful can be lost.\nany_item: they can hold anything; collect everything there before finishing those missions.",
+     "doc": "Eden Prime, Therum, Virmire and Asteroid X57 close for good once their mission is finished, so checks left behind\nthere are lost. Feros and Noveria close in part: afterwards only Zhu's Hope and Port Hanshan can be revisited.\n\nno_progression: their containers hold no progression items: this game's gear, upgrades and filler, and other games'\nfiller. Leaving one behind can cost gear, never progress.\nfiller_only: they hold filler only, so nothing useful can be lost.\nany_item: they can hold anything; collect everything there before finishing those missions.\nCodex pages only found there never hold progression items (missable codex pages); filler_only makes them filler.",
      "type": "choice",
      "default": "no_progression",
      "choices": [
@@ -159,11 +166,18 @@
     {
      "key": "gear_weight",
      "display": "Gear Weight",
-     "doc": "Weight of gear among useful items: one manufacturer's weapon, armor, bio-amp or omni-tool line each. Every\ncategory is represented; about one in twenty is Spectre gear. Gear arrives at a level that climbs from I to X as\nyou collect it (Spectre gear is always X). At most 227 gear items: past that, the other weights share the rest.",
+     "doc": "Weight of gear among useful items: one manufacturer's weapon, armor, bio-amp or omni-tool line each. Every\ncategory is represented; about one in twenty is Spectre gear. Gear arrives at a level that climbs from I to X as\nyou collect it (Spectre gear is always X). At most 185 gear items (227 with Extra Gear): past that, the other weights\nshare the rest.",
      "type": "range",
      "default": 50,
      "min": 0,
      "max": 100
+    },
+    {
+     "key": "extra_gear",
+     "display": "Extra Gear",
+     "doc": "Gear from Batarian State Arms, Cerberus Skunkworks, Jormangund Technology and HK Shadow Works can be in the pool\n(16 weapons, 24 armors). The game's own loot only offers these behind its DLC1-DLC4 flags, and their stats can be\nunusual: weapons showing 0 damage and accuracy, strong low-level armor.",
+     "type": "toggle",
+     "default": false
     },
     {
      "key": "upgrade_weight",

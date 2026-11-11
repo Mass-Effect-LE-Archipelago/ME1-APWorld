@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from rule_builder.rules import Has, HasFromList
 
 from . import data, squad_talk, uncharted
-from .regions import HAS_MAKO, location_included
+from .regions import GROUNDED_QUESTS, HAS_MAKO, location_included
 
 if TYPE_CHECKING:
     from .world import MassEffectLE1World
@@ -29,6 +29,8 @@ NEEDS_ANY_SQUADMATE = {
     "UNC: Listening Post Theta: Started": HasFromList(*(s for s in data.SQUAD if s != "Tali'Zorah nar Rayya")),
     "UNC: Listening Post Theta: Completed": HasFromList(*(s for s in data.SQUAD if s != "Tali'Zorah nar Rayya")),
 }
+# The grounding (regions.GROUNDED_QUESTS) needs every main mission before Ilos done.
+GROUNDED = Has(data.EVENT_THERUM) & Has(data.EVENT_FEROS) & Has(data.EVENT_NOVERIA) & Has(data.EVENT_VIRMIRE)
 UNCHARTED_LANDINGS = HAS_ACT1 & HAS_MAKO  # the Uncharted Worlds entrance (regions.ENTRANCES)
 MISSIONS_DONE = (data.EVENT_THERUM, data.EVENT_FEROS, data.EVENT_NOVERIA)  # what squad_talk.TalkGate.missions counts
 UNCHARTED_GATES = {  # landing conditions of gated uncharted planets (uncharted.py)
@@ -41,7 +43,7 @@ UNCHARTED_GATES = {  # landing conditions of gated uncharted planets (uncharted.
 def set_rules(world: MassEffectLE1World) -> None:
     # Entrance rules are set when regions are created (regions.ENTRANCES).
     for name, loc in data.LOCATIONS.items():
-        if not location_included(world, loc):
+        if not location_included(world, name, loc):
             continue
         rule = None
         if loc.needs_act1:
@@ -54,6 +56,8 @@ def set_rules(world: MassEffectLE1World) -> None:
             rule = Has(needed) if rule is None else rule & Has(needed)
         if (any_squad := NEEDS_ANY_SQUADMATE.get(name)) is not None:
             rule = any_squad if rule is None else rule & any_squad
+        if name in GROUNDED_QUESTS:
+            rule = GROUNDED if rule is None else rule & GROUNDED
         if name in NEEDS_TWO_SQUADMATES or uncharted.location_needs_two_squadmates(name):
             rule = TWO_SQUADMATES if rule is None else rule & TWO_SQUADMATES
         if (gate := uncharted.location_gate(name)) is not None:

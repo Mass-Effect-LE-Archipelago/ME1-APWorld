@@ -2,11 +2,11 @@
 
 131 lore pages + 13 tutorial pages, read from the game's codex map (BIOC_Materials.pcc). Sources come from a scan of every level package for the conversation lines and level scripts that fire each page's unlock transition.
 
-Missable: Automatic 17, No 87, Unobtainable 4, Yes 23.
+Missable: Automatic 17, No 83, Unobtainable 4, Yes 27.
 
 - **No**: a source stays available for the rest of the game.
 - **Automatic**: a story scene or forced encounter gives it.
-- **Yes**: can be lost for good (closing mission, prologue-only, a dialogue choice, or a squadmate who can die).
+- **Yes**: can be lost for good (closing mission, prologue-only, a dialogue choice, a squadmate who can die, or Liara's talks after the Normandy is grounded).
 - **Unobtainable**: nothing in the game data unlocks it.
 - **Charm/Intimidate**: the number is the Charm or Intimidate skill rank (conditionals F158/F159 compare it with the skill). Only Starships: Carriers needs one (Intimidate 9); elsewhere a check sits on an optional branch or has a check-free alternative.
 - **New-career reward**: a new career on a profile with bool 6479 (Codex_Tracking) set gets these at game start.
@@ -20,8 +20,8 @@ Missable: Automatic 17, No 87, Unobtainable 4, Yes 23.
 | 5667 | Turians | No | Citadel Presidium: turian arguing with the hanar preacher; or Joker in the prologue ("I hate that guy") | None | New-career reward; AP: story / CITADEL |
 | 6141 | Asari: Biology | Yes | Liara: melding talk | Liara romance active + her stage 2 talk | Romance-only; AP: story / NORMANDY / Liara T'Soni |
 | 6142 | Asari: Culture | No | Liara: first talk on the Normandy | Liara recruited | AP: story / NORMANDY / Liara T'Soni |
-| 6143 | Asari: Government | No | Liara: first talk (about herself) | Liara recruited | AP: story / NORMANDY / Liara T'Soni |
-| 6145 | Asari: Religion | No | Liara: later talk | Liara stage 1 talk (after another mission or uncharted landings) | AP: story / NORMANDY / Liara T'Soni |
+| 6143 | Asari: Government | Yes | Liara: first talk (about herself) | Liara recruited, before the grounding | Liara's talks need the Normandy not grounded: docking at the Citadel with Therum, Feros, Noveria and Virmire done grounds it for good; AP: story / NORMANDY / Liara T'Soni |
+| 6145 | Asari: Religion | Yes | Liara: later talk | Liara stage 1 talk (after another mission or uncharted landings), before the grounding | Liara's talks need the Normandy not grounded: docking at the Citadel with Therum, Feros, Noveria and Virmire done grounds it for good; AP: story / NORMANDY / Liara T'Soni |
 | 6146 | Salarians: Biology | Yes | Kaidan: Vyrnnus/Rahna talk; or Virmire salarian camp: decrypt a terminal (JUG20_08) | Kaidan stage 2 talk, or the Virmire mission | Kaidan can die on Virmire; Virmire closes; AP: story / NORMANDY / Kaidan Alenko |
 | 6147 | Salarians: Culture | Yes | Virmire salarian camp: decrypt a terminal (JUG20_08) | Virmire mission | Virmire closes once finished; AP: story / VIRMIRE |
 | 6148 | Salarians: Government | Yes | Virmire: Captain Kirrahe, after accepting the mission plan | Virmire mission | Virmire closes once finished; AP: story / VIRMIRE |
@@ -42,7 +42,7 @@ Missable: Automatic 17, No 87, Unobtainable 4, Yes 23.
 |---|---|---|---|---|---|
 | 5673 | Protheans | Yes | Normandy prologue: Anderson's briefing with Nihlus before Eden Prime, ask about the Protheans | Prologue only (before Eden Prime); dialogue choice | Only source is the prologue briefing (or the new-career codex reward); New-career reward; not an AP check |
 | 5674 | Rachni | No | Citadel Presidium: Avina (VI) at the Citadel stores; also Noveria Peak 15 (rachni queen, Han Olar, Tartakovsky) | None | New-career reward; AP: story / CITADEL |
-| 6159 | Protheans: Beacon | No | Liara: first talk (the beacon); Ilos: Vigil | Liara recruited | AP: story / NORMANDY / Liara T'Soni |
+| 6159 | Protheans: Beacon | Yes | Liara: first talk (the beacon); Ilos: Vigil | Liara recruited, before the grounding | Liara's talks need the Normandy not grounded: docking at the Citadel with Therum, Feros, Noveria and Virmire done grounds it for good (the Vigil is past the point of no return); AP: story / NORMANDY / Liara T'Soni |
 | 6160 | Protheans: Cipher | Automatic | Feros: asari commando after the Thorian (the Cipher); Liara after Virmire | Feros mission | Main-mission conversation; AP: story / THERUM |
 | 6161 | Protheans: Data Disks | No | Uncharted: find a Prothean data disc (galaxy-map survey of Juntauma, Phoenix, Alrumter, Shaaring... or a surface pickup) | Mako/uncharted access | AP: full / UNCHARTED |
 | 6162 | Protheans: Mars Ruins | No | Galaxy map (Normandy CIC): view Mars (Sol) on the map | None | AP: full / UNCHARTED |
@@ -68,7 +68,7 @@ Missable: Automatic 17, No 87, Unobtainable 4, Yes 23.
 | 6169 | Quarians: Government | No | Tali: talk about the fleet's government | Tali recruited | AP: story / NORMANDY / Tali'Zorah nar Rayya |
 | 6170 | Quarians: Migrant Fleet | No | Tali: first talk | Tali recruited | AP: story / NORMANDY / Tali'Zorah nar Rayya |
 | 6171 | Quarians: Pilgrimage | No | Tali: pilgrimage talk; or Citadel: the quarian at Udina's (after saving Tali) | Tali recruited | AP: story / CITADEL |
-| 6172 | Quarians: Religion | No | Tali: third-stage talk (before her geth plot is resolved) | Tali talk stage 3 | AP: story / NORMANDY / Tali'Zorah nar Rayya |
+| 6172 | Quarians: Religion | Yes | Tali: third-stage talk (before her geth plot is resolved) | Tali talk stage 3 | Finishing or refusing Tali and the Geth first closes it; AP: story / NORMANDY / Tali'Zorah nar Rayya |
 | 6173 | Quarians: Law and Defense | No | Tali: later talk about her father | Tali's princess reveal (bool 4599) | AP: story / NORMANDY / Tali'Zorah nar Rayya |
 | 6221 | Krogan: Biology | Yes | Wrex: fifth story talk | Wrex alive, late talk | Wrex can die on Virmire; AP: story / NORMANDY / Urdnot Wrex |
 | 6222 | Krogan: Culture | Yes | Wrex: third story talk | Wrex alive, later talk | Wrex can die on Virmire; AP: story / NORMANDY / Urdnot Wrex |
@@ -164,7 +164,7 @@ Missable: Automatic 17, No 87, Unobtainable 4, Yes 23.
 
 | ID | Title | Missable | Where to get it | Requirements | Notes |
 |---|---|---|---|---|---|
-| 5806 | Biotics | No | Kaidan talks (biotic training); Chakwas in the med bay (L2/L3 implants); assignment transmissions (biotic fanatics: sp111, sp125) | Kaidan: stage talk; Chakwas: after the prologue, before Ashley is rescued and before Kaidan's biotics talk | The assignment transmissions also give it (the AP world treats it as Kaidan-only/missable); New-career reward; AP: story / NORMANDY / Kaidan Alenko |
+| 5806 | Biotics | No | Kaidan talks (biotic training); Chakwas in the med bay (L2/L3 implants); assignment transmissions (biotic fanatics: sp111, sp125) | Kaidan: stage talk; Chakwas: after the prologue, before Ashley is rescued and before Kaidan's biotics talk | The assignment transmissions also give it; New-career reward; AP: story / NORMANDY / Kaidan Alenko |
 | 5815 | Computers: Virtual Intelligence (VI) | No | Citadel: first talk with any Avina terminal; Noveria Peak 15: Mira (first talk); Feros ExoGeni: the VI | None | New-career reward; not an AP check |
 | 5819 | Element Zero ("Eezo") | No | Normandy Engineering (NOR10_12): examine the drive core area; War Hero: Lord Darius | None | New-career reward; AP: full / NORMANDY |
 | 5820 | Mass Effect Fields | No | Normandy Engineering (NOR10_12): examine an object; or Kaidan's training talk | None | New-career reward; AP: story / NORMANDY / Kaidan Alenko |

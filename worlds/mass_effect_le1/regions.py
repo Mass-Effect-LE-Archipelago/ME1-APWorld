@@ -47,11 +47,14 @@ ENTRANCES: dict[R, Rule] = {
 }
 
 
-def location_included(world: MassEffectLE1World, loc: data.LocationData) -> bool:
-    """Whether this seed has the location: its region exists and its codexsanity tier is on."""
+def location_included(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
+    """Whether this seed has the location: its region exists and its codexsanity tier is on (never a codex page the
+    story gives on its own, AUTOMATIC_CODEX)."""
     if loc.region is R.ASTEROID_X57 and not world.options.bring_down_the_sky:
         return False
     if loc.codex is not None:
+        if name in AUTOMATIC_CODEX:
+            return False
         level = world.options.codexsanity.value
         return level == 2 or (level == 1 and loc.codex == "story")
     if loc.journal is not None:
@@ -118,11 +121,57 @@ def closed_after_mission(name: str, loc: data.LocationData) -> bool:
     return loc.region is R.NOVERIA and NOVERIA_CLOSED_CHUNK.match(chunk) is not None
 
 
-# Joker's prologue conversation (nor10_joker_dlg) plays only while int 13 is 10101 and bool 3214 is unset, which the
-# open start leaves in place until Udina's office on the first Citadel visit sets 3214.
+# Codex pages by how they are obtained (the Missable column of docs/ME1_codex_entries.md). Pages the story gives on its
+# own are never locations; pages that can be missed for good hold no progression items (any game's filler or useful).
+AUTOMATIC_CODEX = frozenset({
+    "Codex: Aliens: Council Races: Asari",  # the Council meeting
+    "Codex: Aliens: Council Races: Salarians",
+    "Codex: Aliens: Non-Council Races: Krogan",  # the first Citadel investigation
+    "Codex: Aliens: Non-Council Races: Quarians",
+    "Codex: Citadel and Galactic Government: Citadel",
+    "Codex: Citadel and Galactic Government: Citadel Council",  # Avina, or Udina sending you to the Tower
+    "Codex: Aliens: Non-Sapient Creatures: Husks",  # Eden Prime
+    "Codex: Ships and Vehicles: Sovereign",  # main-mission conversations
+    "Codex: Aliens: Council Races: Salarians: Special Tasks Group",  # a story transmission
+    "Codex: Aliens: Extinct Races: Protheans: Cipher",
+    "Codex: Aliens: Non-Council Races: Geth: Armatures",  # main-mission encounters
+    "Codex: Aliens: Non-Council Races: Geth: Hoppers",
+    "Codex: Citadel and Galactic Government: Citadel Station: Statistics",
+    "Codex: Ships and Vehicles: Space Combat: Trans-Relay Assaults",
+    "Codex: Ships and Vehicles: Weapons: Javelin",
+})
 MISSABLE_CODEX = frozenset({
+    'Codex: Weapons, Armor and Equipment: Kinetic Barriers ("Shields")',  # Eden Prime, or the end of Therum
+    "Codex: Aliens: Non-Council Races: Geth",  # Eden Prime
+    "Codex: Aliens: Council Races: Salarians: Culture",  # Virmire
+    "Codex: Aliens: Council Races: Salarians: Government",
+    "Codex: Aliens: Council Races: Salarians: Military Doctrine",
+    # Joker's prologue talk (nor10_joker_dlg) plays only while int 13 is 10101 and bool 3214 is unset, which the open
+    # start leaves in place until Udina's office on the first Citadel visit sets 3214.
     "Codex: Humanity and the Systems Alliance: Systems Alliance",
     "Codex: Humanity and the Systems Alliance: Timeline",
+    "Codex: Ships and Vehicles: FTL Drive",  # only in Adams' first conversation
+    "Codex: Ships and Vehicles: Military Ship Classifications",
+    "Codex: Ships and Vehicles: Starships: Carriers",  # only on the intimidate branch of its event
+    "Codex: Aliens: Council Races: Asari: Biology",  # Liara's romance
+    # Liara's talks need bool 4388 Grounded unset; docking at the Citadel with Therum, Feros, Noveria and Virmire done
+    # plays the grounding (BIOA_STA70_02ground, F837), which nothing undoes
+    "Codex: Aliens: Council Races: Asari: Government",
+    "Codex: Aliens: Council Races: Asari: Religion",
+    "Codex: Aliens: Extinct Races: Protheans: Beacon",
+    "Codex: Aliens: Non-Council Races: Quarians: Religion",  # Tali's third talk, only while her geth quest is open
+    "Codex: Aliens: Council Races: Turians: Religion",  # Garrus's Paragon or Renegade points
+    # Kaidan, Ashley and Wrex can die on Virmire
+    "Codex: Aliens: Council Races: Salarians: Biology",
+    "Codex: Planets and Locations: Stations: Gagarin Station",
+    "Codex: Technology: Biotics: Biotic Amps",
+    "Codex: Technology: Biotics: Life as a Biotic",
+    "Codex: Technology: Biotics: Training",
+    "Codex: Humanity and the Systems Alliance: Systems Alliance: Military Doctrine",
+    "Codex: Ships and Vehicles: Space Combat: Planetary Assaults",
+    "Codex: Aliens: Non-Council Races: Krogan: Biology",
+    "Codex: Aliens: Non-Council Races: Krogan: Culture",
+    "Codex: Aliens: Non-Council Races: Krogan: Military Doctrine",
 })
 
 
@@ -134,21 +183,32 @@ def closes_with_mission(name: str, loc: data.LocationData) -> bool:
     return closed_after_mission(name, loc)
 
 
-def missable_codex(name: str, loc: data.LocationData) -> bool:
-    """A codex page that can be missed for good: Joker's prologue pages (MISSABLE_CODEX), and squadmate pages that need
-    a dialogue or romance choice or the squadmate alive after Virmire (squad_talk.TalkGate.choice)."""
-    if name in MISSABLE_CODEX:
-        return True
-    gate = squad_talk.TALK_GATES.get(name)
-    return gate is not None and gate.choice and loc.codex is not None
+# Citadel quests whose NPCs are only there while the Normandy is grounded (Keeler: F1381 Grounded and not completed;
+# the rioters: F1403 Grounded and the escape not over). The grounding plays on docking at the Citadel with Therum,
+# Feros, Noveria and Virmire done; leaving the Citadel ends the window.
+GROUNDED_QUESTS = frozenset({
+    "Citadel: Negotiator's Request: Started", "Citadel: Negotiator's Request: Completed",
+    "Citadel: Our Own Worst Enemy: Started", "Citadel: Our Own Worst Enemy: Completed",
+})
+
+
+def missable(name: str) -> bool:
+    """A check that can be missed for good (MISSABLE_CODEX, GROUNDED_QUESTS): holds no progression item of any game."""
+    return name in MISSABLE_CODEX or name in GROUNDED_QUESTS
+
+
+def container_holds_no_progression(world: MassEffectLE1World, loc: data.LocationData) -> bool:
+    """A container or treasure-roll check under containers_no_progression: holds no progression item of any game (some
+    containers turn out missing or unopenable)."""
+    return bool(world.options.containers_no_progression) and loc.container in ("container", "drop")
 
 
 def no_progression_rule(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
-    """Gets the no_progression_item_allowed rule: a missable codex page, a check on a planet only a morality
-    transmission opens, or a check that closes with its mission under finished_mission_checks no_progression."""
-    if location_excluded(world, name, loc):
+    """Gets the no_progression_item_allowed rule: a check on a planet only a morality transmission opens, or a check
+    that closes with its mission under finished_mission_checks no_progression (a missable check has its own)."""
+    if location_excluded(world, name, loc) or missable(name):
         return False
-    return missable_codex(name, loc) or uncharted.location_needs_morality(name) or (
+    return uncharted.location_needs_morality(name) or (
         world.options.finished_mission_checks == world.options.finished_mission_checks.option_no_progression
         and closes_with_mission(name, loc))
 
@@ -161,9 +221,16 @@ def no_progression_item_allowed(world: MassEffectLE1World, item: Item) -> bool:
     return item.excludable
 
 
+def missable_item_allowed(item: Item) -> bool:
+    """Whether a missable check may hold this item: any game's filler or useful item, never progression."""
+    return not item.advancement
+
+
 def holds_no_progression(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
-    """Never holds this world's progression: filler only (location_excluded) or no_progression_rule."""
-    return location_excluded(world, name, loc) or no_progression_rule(world, name, loc)
+    """Never holds this world's progression: filler only (location_excluded), no_progression_rule, a missable check,
+    or container_holds_no_progression."""
+    return (location_excluded(world, name, loc) or no_progression_rule(world, name, loc) or missable(name)
+            or container_holds_no_progression(world, loc))
 
 
 def location_excluded(world: MassEffectLE1World, name: str, loc: data.LocationData) -> bool:
@@ -200,7 +267,7 @@ def create_regions(world: MassEffectLE1World) -> None:
     regions[R.ILOS].connect(regions[R.FINAL_CITADEL], "Ilos -> Conduit")  # linear story
 
     for name, loc in data.LOCATIONS.items():
-        if not location_included(world, loc):
+        if not location_included(world, name, loc):
             continue
         location = MassEffectLE1Location(world.player, name, data.LOCATION_NAME_TO_ID[name], regions[loc.region])
         if location_excluded(world, name, loc):
@@ -209,6 +276,10 @@ def create_regions(world: MassEffectLE1World) -> None:
             add_item_rule(location, lambda item: no_return_item_allowed(world, item))
         elif no_progression_rule(world, name, loc):
             add_item_rule(location, lambda item: no_progression_item_allowed(world, item))
+        elif missable(name):
+            add_item_rule(location, missable_item_allowed)
+        if container_holds_no_progression(world, loc):
+            add_item_rule(location, missable_item_allowed)  # on top of the rules above
         regions[loc.region].locations.append(location)
 
     _add_event(world, regions[R.CITADEL], data.EVENT_ACT1)

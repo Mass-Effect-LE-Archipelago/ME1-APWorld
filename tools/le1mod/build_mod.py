@@ -21,7 +21,8 @@ Patches (squadmates join only through Archipelago items):
   Mako bool is set.
 - story recruitment (PlotManager.pcc conditionals, and Citadel conversations in each language): checks that read
   Garrus's, Wrex's or Tali's in-party bool as "recruited in the story" read the story's own flag instead, since the
-  client sets the in-party bool when the item arrives (CONDITIONAL_SWAPS, CONVERSATION_PATCHES).
+  client sets the in-party bool when the item arrives (CONDITIONAL_SWAPS, CONVERSATION_PATCHES). Eden Prime's
+  trench (BIOA_PRO10_05_DSG.pcc) does the same for Ashley, so her join conversation plays once (KISMET_CHECKS).
 - The Look (PlotManagerAutoAPME1.pcc, the Council's Spectre induction in each language): mod transition 20103 sets
   bool 20103, and the induction runs it right after the asari Councilor's look (BOOL_TRANSITIONS, TRANSITION_NODES).
 - Virmire transmission (PlotManagerAutoAPME1.pcc): mod transition 20104 does what the Council's Virmire transmission
@@ -316,6 +317,52 @@ def patch_conversations(cooked: str, mod_cooked: str, dll: str) -> dict[str, int
     return changed
 
 
+ASHLEY_IN_PARTY = 3940
+ASHLEY_RECRUITED = 3818  # set with the in-party bool by Ashley's join conversation (transition 1994)
+# Kismet plot checks that read an in-party bool as "recruited in the story": package -> (sequence object, old bool,
+# new bool). The object checks the story flag instead.
+KISMET_CHECKS = {
+    "BIOA_PRO10_05_DSG.pcc": [
+        # Eden Prime trench: two trigger volumes start Ashley's join conversation while she is not in the party
+        ("TheWorld.PersistentLevel.Main_Sequence.Plots.TrenchEntrance.BioSeqAct_PMCheckState_2",
+         ASHLEY_IN_PARTY, ASHLEY_RECRUITED),
+        ("TheWorld.PersistentLevel.Main_Sequence.Plots.TrenchEntrance.BioSeqAct_PMCheckState_6",
+         ASHLEY_IN_PARTY, ASHLEY_RECRUITED),
+        # level load: the scene after Ashley's fight
+        ("TheWorld.PersistentLevel.Main_Sequence.LevelStartup.AshleyGeth.BioSeqAct_PMCheckState_0",
+         ASHLEY_IN_PARTY, ASHLEY_RECRUITED),
+    ],
+}
+
+
+def patch_kismet_checks(cooked: str, mod_cooked: str, dll: str) -> dict[str, int]:
+    """KISMET_CHECKS; a package the mod does not ship yet is copied from the game."""
+    changed = {}
+    for name, checks in KISMET_CHECKS.items():
+        path = os.path.join(mod_cooked, name)
+        if not os.path.isfile(path):
+            shutil.copyfile(os.path.join(cooked, name), path)
+        pkg = le1pkg.read(path, dll)
+        count = 0
+        for full_name, old, new in checks:
+            export = pkg.find("BioSeqAct_PMCheckState", full_name)
+            data = pkg.image[export.offset:export.offset + export.size]
+            offset = conversation_mod.property_offset(pkg.names, data, "m_nIndex")
+            current = struct.unpack_from("<i", data, offset)[0]
+            if current == new:
+                continue
+            if current != old:
+                raise SystemExit(f"{path}: {full_name} checks {current}, not {old}")
+            struct.pack_into("<i", pkg.image, export.offset + offset, new)
+            count += 1
+        if count:
+            le1pkg.write(pkg, path, dll)
+            if le1pkg.read(path, dll).image != pkg.image:
+                raise SystemExit(f"{path}: written package does not match the patched image")
+        changed[name] = count
+    return changed
+
+
 MOD_TRANSITIONS_PACKAGE = "PlotManagerAutoAPME1.pcc"
 VANILLA_TRANSITIONS = ("BIOC_Materials.pcc", "PlotManagerAuto.StateTransitionMap")  # the game's map
 THE_LOOK = 20103  # transition and plot bool: the Citadel: The Look check
@@ -439,6 +486,8 @@ def main(game: str, base: str | None = None) -> None:
     print(f"{CONDITIONALS_PACKAGE}: story recruitment conditionals changed: {changed or 'none (already patched)'}")
     for name, count in patch_conversations(cooked, mod_cooked, dll).items():
         print(f"{name}: {count} conversation nodes changed")
+    for name, count in patch_kismet_checks(cooked, mod_cooked, dll).items():
+        print(f"{name}: {count} plot checks changed")
     added = add_mod_transitions(os.path.join(mod_cooked, MOD_TRANSITIONS_PACKAGE), mod_transition_elements(cooked, dll), dll)
     print(f"{MOD_TRANSITIONS_PACKAGE}: transitions added: {added or 'none (already there)'}")
     for name, count in patch_transition_nodes(cooked, mod_cooked, dll).items():

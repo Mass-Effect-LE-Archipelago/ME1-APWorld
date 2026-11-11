@@ -1,8 +1,9 @@
 from ..data import COORDINATES, EVENT_ACT1, EXPERIENCE, EVENT_FEROS, EVENT_THERUM, EVENT_NOVERIA, EVENT_VIRMIRE, FILLER, FRAGMENT, GEAR_BY_NAME, HUMAN_SQUAD, LOCATIONS, MAKO, NO_RETURN_REGIONS, Region, SHOPS, SQUAD, UPGRADE, shop_bool
 from BaseClasses import Item, ItemClassification, LocationProgressType
 from ..options import options_presets
-from ..items import GEAR_MAX
+from ..items import EXTRA_GEAR_MANUFACTURERS, GEAR_MAX, gear_lines, gear_max
 from ..squad_talk import TALK_GATES
+from ..regions import AUTOMATIC_CODEX, GROUNDED_QUESTS, MISSABLE_CODEX
 from . import MassEffectLE1TestBase
 
 
@@ -71,6 +72,7 @@ class TestDefaults(MassEffectLE1TestBase):
 
 class TestUnchartedGates(MassEffectLE1TestBase):
     """Uncharted planets whose landing waits on a story flag (uncharted.py)."""
+    options = {"containers_no_progression": False}  # these tests use containers for the planets' own rules
 
     def collect_event(self, name: str) -> None:
         self.collect(self.multiworld.get_location(name, self.player).item)
@@ -113,7 +115,7 @@ class TestUnchartedGates(MassEffectLE1TestBase):
                      "Codex: Aliens: Non-Council Races: Geth", "Asteroid X57: Grenade Storage Box 13"):
             self.assertFalse(takes_own_progression(self, name), name)
         for name in ("Therum: Rescue Liara", "Virmire: The Survivor", "Eden Prime: Beacon Vision",
-                     "Codex: Aliens: Non-Sapient Creatures: Husks", "Asteroid X57: Bring Down the Sky"):  # on the way, or also found elsewhere: normal
+                     "Asteroid X57: Bring Down the Sky"):  # on the way: normal
             self.assertTrue(takes_own_progression(self, name), name)
 
     def test_finished_missions_take_gear_but_not_others_useful_items(self) -> None:
@@ -161,7 +163,7 @@ class TestUnchartedGates(MassEffectLE1TestBase):
 
 
 class TestFinishedMissionsAnyItem(MassEffectLE1TestBase):
-    options = {"finished_mission_checks": "any_item"}
+    options = {"finished_mission_checks": "any_item", "containers_no_progression": False}
 
     def test_finished_mission_checks_are_normal(self) -> None:
         for name in ("Therum: Ammo Pack 1", "Feros: Ammo Pack 1", "Noveria: Aid Station 1"):
@@ -169,7 +171,7 @@ class TestFinishedMissionsAnyItem(MassEffectLE1TestBase):
 
 
 class TestFinishedMissionsFillerOnly(MassEffectLE1TestBase):
-    options = {"finished_mission_checks": "filler_only"}
+    options = {"finished_mission_checks": "filler_only", "containers_no_progression": False}
 
     def test_finished_mission_checks_hold_filler_only(self) -> None:
         for name in ("Therum: Ammo Pack 1", "Feros: Ammo Pack 1", "Noveria: Aid Station 1", "Virmire: Salarian Camp Slot 1"):
@@ -208,9 +210,9 @@ class TestFragmentClamping(MassEffectLE1TestBase):
                "aid_stations": False, "shop_slots": 0}
 
     def test_fragments_clamped_to_location_room(self) -> None:
-        # 24 locations - 1 on Ilos (no own progression) - 6 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 6
-        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 6)
-        self.assertEqual(self.world.fragments_required, 6)
+        # 23 locations - 1 on Ilos (no own progression) - 6 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 5
+        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 5)
+        self.assertEqual(self.world.fragments_required, 5)
 
 
 class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
@@ -233,8 +235,8 @@ class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
         self.assertTrue(self.can_reach_region(Region.VIRMIRE.value))
 
     def test_freed_slots_go_to_fragments_room(self) -> None:
-        # 24 locations - 1 on Ilos (no own progression) - 4 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 8
-        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 8)
+        # 23 locations - 1 on Ilos (no own progression) - 4 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 7
+        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 7)
 
 
 class TestGearDraw(MassEffectLE1TestBase):
@@ -282,6 +284,28 @@ class TestGearOnly(MassEffectLE1TestBase):
         self.assertEqual(len(set(name for name in names if name in GEAR_BY_NAME)), self.world.gear_total)
 
 
+class TestExtraGearOff(MassEffectLE1TestBase):
+    options = {"useful_share": 100, "upgrade_weight": 0, "experience_weight": 0}
+
+    def test_extra_gear_stays_out_by_default(self) -> None:
+        gear = [GEAR_BY_NAME[item.name] for item in self.multiworld.itempool if item.name in GEAR_BY_NAME]
+        self.assertTrue(gear)
+        self.assertFalse(any(line.manufacturer_row in EXTRA_GEAR_MANUFACTURERS for line in gear))
+        self.assertLessEqual(self.world.gear_total, gear_max(gear_lines(extra=False)))
+
+    def test_extra_gear_is_forty_lines(self) -> None:
+        self.assertEqual(len(gear_lines(extra=True)) - len(gear_lines(extra=False)), 40)
+        self.assertEqual((gear_max(gear_lines(extra=False)), GEAR_MAX), (185, 227))
+
+
+class TestExtraGearOn(MassEffectLE1TestBase):
+    options = {"useful_share": 100, "upgrade_weight": 0, "experience_weight": 0, "extra_gear": True}
+
+    def test_extra_gear_can_be_drawn(self) -> None:
+        gear = [GEAR_BY_NAME[item.name] for item in self.multiworld.itempool if item.name in GEAR_BY_NAME]
+        self.assertTrue(any(line.manufacturer_row in EXTRA_GEAR_MANUFACTURERS for line in gear))
+
+
 class TestGearSpread(MassEffectLE1TestBase):
     options = {"useful_share": 10, "upgrade_weight": 0, "experience_weight": 0}  # about 64 lines: under 12 x 6
 
@@ -297,7 +321,7 @@ class TestGearSpread(MassEffectLE1TestBase):
 class TestCodexsanity(MassEffectLE1TestBase):
     def test_full_codex_is_in_and_squad_pages_need_the_squadmate(self) -> None:
         codex = [loc for loc in self.multiworld.get_locations(self.player) if loc.name.startswith("Codex: ")]
-        self.assertEqual(len(codex), 119)
+        self.assertEqual(len(codex), 104)  # 120 pages, less BDtS's and the 15 the story gives on its own
         page = next(name for name, loc in LOCATIONS.items() if loc.squad == "Liara T'Soni" and name not in TALK_GATES)
         self.assertFalse(self.can_reach_location(page))
         self.collect_by_name(["Liara T'Soni"])
@@ -306,13 +330,34 @@ class TestCodexsanity(MassEffectLE1TestBase):
     def test_uncharted_waits_for_act1(self) -> None:
         self.assertFalse(self.can_reach_region(Region.UNCHARTED.value))
 
+    def test_automatic_pages_are_not_locations(self) -> None:
+        names = {loc.name for loc in self.multiworld.get_locations(self.player)}
+        for name in AUTOMATIC_CODEX:
+            self.assertIn(name, LOCATIONS)
+            self.assertNotIn(name, names)
+
+    def test_missable_pages_hold_filler_or_useful_of_any_game(self) -> None:
+        useful = Item("Other Useful", ItemClassification.useful, None, self.player + 1)
+        progression = Item("Other Progression", ItemClassification.progression, None, self.player + 1)
+        for name in MISSABLE_CODEX:
+            location = self.multiworld.get_location(name, self.player)
+            self.assertFalse(takes_own_progression(self, name), name)
+            self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))), name)
+            self.assertTrue(location.item_rule(useful), name)
+            self.assertFalse(location.item_rule(progression), name)
+
+    def test_other_pages_take_progression(self) -> None:
+        for location in self.multiworld.get_locations(self.player):
+            if location.name.startswith("Codex: ") and location.name not in MISSABLE_CODEX:
+                self.assertTrue(takes_own_progression(self, location.name), location.name)
+
 
 class TestCodexsanityStory(MassEffectLE1TestBase):
     options = {"codexsanity": "story"}
 
     def test_only_story_pages(self) -> None:
         codex = [loc.name for loc in self.multiworld.get_locations(self.player) if loc.name.startswith("Codex: ")]
-        self.assertEqual(len(codex), 94)
+        self.assertEqual(len(codex), 79)
         self.assertTrue(all(LOCATIONS[name].codex == "story" for name in codex))
 
 
@@ -348,6 +393,37 @@ class TestContainerDrops(MassEffectLE1TestBase):
         self.collect(self.world.create_item("Liara T'Soni"))
         for name in names:
             self.assertTrue(self.can_reach_location(name), name)
+
+
+class TestContainersNoProgression(MassEffectLE1TestBase):
+    options = {"containersanity": "with_drops"}
+
+    def test_containers_and_drops_hold_no_progression_of_any_game(self) -> None:
+        progression = Item("Other Progression", ItemClassification.progression, None, self.player + 1)
+        kinds = set()
+        for location in self.multiworld.get_locations(self.player):
+            kind = LOCATIONS[location.name].container if location.name in LOCATIONS else None
+            if kind in ("container", "drop"):
+                kinds.add(kind)
+                self.assertFalse(takes_own_progression(self, location.name), location.name)
+                self.assertFalse(location.item_rule(progression), location.name)
+        self.assertEqual(kinds, {"container", "drop"})
+
+    def test_plain_container_takes_any_games_useful_items(self) -> None:
+        location = self.multiworld.get_location("Klensal: Locked Secure Weapon Locker 1", self.player)
+        self.assertTrue(location.item_rule(Item("Other Useful", ItemClassification.useful, None, self.player + 1)))
+        self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))))
+
+    def test_aid_stations_are_not_affected(self) -> None:
+        station = next(name for name, loc in LOCATIONS.items() if loc.container == "station" and loc.region is Region.CITADEL)
+        self.assertTrue(takes_own_progression(self, station), station)
+
+
+class TestContainersAnyItem(MassEffectLE1TestBase):
+    options = {"containers_no_progression": False}
+
+    def test_open_containers_take_progression(self) -> None:
+        self.assertTrue(takes_own_progression(self, "Klensal: Locked Secure Weapon Locker 1"))
 
 
 class TestUnlockContainers(MassEffectLE1TestBase):
@@ -390,6 +466,21 @@ class TestJournalsanity(MassEffectLE1TestBase):
             choice = loc.name in TALK_GATES and TALK_GATES[loc.name].choice  # e.g. Wrex: Family Armor (Wrex can die)
             self.assertEqual(loc.progress_type == LocationProgressType.EXCLUDED, loc.name.endswith(": Completed") or choice,
                              loc.name)
+
+    def test_grounded_quests_need_every_mission_and_hold_no_progression(self) -> None:
+        useful = Item("Other Useful", ItemClassification.useful, None, self.player + 1)
+        for name in GROUNDED_QUESTS:
+            self.assertFalse(self.can_reach_location(name), name)
+            self.assertFalse(takes_own_progression(self, name), name)
+            self.assertTrue(self.multiworld.get_location(name, self.player).item_rule(useful), name)
+        events = {loc.item.name: loc.item for loc in self.multiworld.get_locations(self.player)
+                  if loc.item is not None and loc.address is None}
+        for event in (EVENT_THERUM, EVENT_FEROS, EVENT_NOVERIA):
+            self.collect(events[event])
+        self.assertFalse(self.can_reach_location("Citadel: Our Own Worst Enemy: Started"))
+        self.collect(events[EVENT_VIRMIRE])
+        for name in GROUNDED_QUESTS:
+            self.assertTrue(self.can_reach_location(name), name)
 
     def test_squad_quest_needs_its_squadmate(self) -> None:
         self.assertFalse(self.can_reach_location("Wrex: Family Armor: Started"))
@@ -487,6 +578,7 @@ class TestPresetCompletionist(MassEffectLE1TestBase):
 
 class TestIlosNoReturn(MassEffectLE1TestBase):
     """Ilos is a point of no return: never this world's progression; its gear by default; other games' items always."""
+    options = {"containers_no_progression": False}  # Ilos containers would otherwise refuse other games' progression
 
     def no_return_locations(self) -> list:
         return [location for region in NO_RETURN_REGIONS
@@ -516,7 +608,7 @@ class TestIlosNoReturn(MassEffectLE1TestBase):
 
 
 class TestIlosNoGear(TestIlosNoReturn):
-    options = {"ilos_useful_items": False}
+    options = {"ilos_useful_items": False, "containers_no_progression": False}
 
     def test_own_gear_and_filler(self) -> None:
         for name in (next(iter(GEAR_BY_NAME)), UPGRADE):
@@ -562,21 +654,18 @@ class TestSquadTalk(MassEffectLE1TestBase):
                                ("Codex: Ships and Vehicles: Space Combat: Planetary Assaults", True),
                                ("Codex: Aliens: Non-Council Races: Krogan: Culture", True),
                                ("Codex: Technology: Mass Effect Fields", False),
+                               ("Codex: Technology: Biotics", False),  # also assignment transmissions
                                ("Codex: Humanity and the Systems Alliance: Human Diplomatic Relations", False),
                                ("Codex: Weapons, Armor and Equipment: Body Armor", False),
                                ("Codex: Aliens: Non-Council Races: Krogan: Genophage", False)):
             self.assertEqual(takes_own_progression(self, name), not missable, name)
 
-    def test_choice_checks_hold_no_progression(self) -> None:
-        """Codex pages get the no-progression rule (this world's gear allowed); quests hold filler only."""
+    def test_choice_quests_are_filler_only(self) -> None:
         for name, gate in TALK_GATES.items():
             if gate.choice:
+                self.assertTrue(LOCATIONS[name].journal, name)
                 location = self.multiworld.get_location(name, self.player)
-                self.assertFalse(takes_own_progression(self, name), name)
-                page = LOCATIONS[name].codex is not None
-                self.assertEqual(location.progress_type == LocationProgressType.EXCLUDED, not page, name)
-                if page:
-                    self.assertTrue(location.item_rule(self.world.create_item(next(iter(GEAR_BY_NAME)))), name)
+                self.assertEqual(location.progress_type, LocationProgressType.EXCLUDED, name)
 
 
 class TestSquadTalkMakoShuffled(MassEffectLE1TestBase):
