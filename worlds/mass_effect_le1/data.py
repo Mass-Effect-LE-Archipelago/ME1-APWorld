@@ -164,10 +164,6 @@ LOCATIONS: dict[str, LocationData] = {
     "Citadel: Recruit Tali": LocationData(_L + 0x02, Region.CITADEL, "bool 3721 Quarian_saved"),
     "Citadel: Expose Saren": LocationData(_L + 0x03, Region.CITADEL, "bool 5212 Citadel_Critical_Path.Plot_Complete"),
     "Citadel: The Look": LocationData(_L + 0x04, Region.CITADEL, "bool 20103 AP The Look (mod transition 20103: the Spectre induction, after the asari Councilor's look)"),
-    "Citadel: Asari Consort": LocationData(_L + 0x10, Region.CITADEL, "bool 5853", needs_act1=True),
-    "Citadel: Rita's Sister": LocationData(_L + 0x11, Region.CITADEL, "bool 3899", needs_act1=True),
-    "Citadel: Homecoming": LocationData(_L + 0x12, Region.CITADEL, "bool 4820", needs_act1=True),
-    "Citadel: Reporter's Request": LocationData(_L + 0x13, Region.CITADEL, "bool 4948", needs_act1=True),
     # Eden Prime (D2)
     "Eden Prime: Ashley Joins": LocationData(_L + 0x20, Region.EDEN_PRIME, "bool 5508 First_Time_Talked_to_Flags.Ashley"),
     "Eden Prime: Beacon Vision": LocationData(_L + 0x21, Region.EDEN_PRIME, "bool 3569 BeaconNoticed"),
