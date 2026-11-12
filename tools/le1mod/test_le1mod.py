@@ -194,6 +194,8 @@ class TestGamePackage(unittest.TestCase):
             out = os.path.join(tmp, build_mod.SHOP_PACKAGE)
             le1pkg.write_image(pkg, le1pkg.append_exports(pkg, {target.index: b"APTEST"}), out, dll)
             again = le1pkg.read(out, dll)
+            kept = [c[:2] for c in pkg.header.chunks]
+            self.assertEqual([c[:2] for c in again.header.chunks][:len(kept)], kept)  # the game's chunks stay
             for a, b in zip(pkg.exports, again.exports):
                 if a.index == target.index:
                     self.assertEqual(bytes(again.image[b.offset:b.offset + b.size]), b"APTEST")
