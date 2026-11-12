@@ -268,6 +268,17 @@ def relayout(pkg: Package, added_names: list[str], replaced: dict[int, bytes]) -
     return bytes(head + body + d[cursor:])
 
 
+def append_exports(pkg: Package, replaced: dict[int, bytes]) -> bytes:
+    """The package image with export data replaced (export index -> bytes) by appending it at the end of the image;
+    no other byte moves, so offsets stored inside export data (bulk data) stay right. Write it with write_image."""
+    image = bytearray(pkg.image)
+    by_index = {e.index: e for e in pkg.exports}
+    for index, data in replaced.items():
+        struct.pack_into("<ii", image, by_index[index].entry_offset + 32, len(data), len(image))
+        image += data
+    return bytes(image)
+
+
 def add_names(pkg: Package, names: list[str]) -> list[str]:
     """The names not yet in the package, in order (pass them to relayout)."""
     return [n for n in dict.fromkeys(names) if n not in pkg.names]

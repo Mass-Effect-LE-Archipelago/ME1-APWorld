@@ -185,6 +185,21 @@ class TestGamePackage(unittest.TestCase):
             le1pkg.write(pkg, out, dll)
             self.assertEqual(le1pkg.read(out, dll).image, pkg.image)
 
+    def test_append_exports_moves_nothing_else(self) -> None:
+        dll = os.path.join(os.environ["LE1_GAME"], "Binaries", "Win64", "oo2core_8_win64.dll")
+        src = os.path.join(build_mod.MOD_DIR, "CookedPCConsole", build_mod.SHOP_PACKAGE)
+        pkg = le1pkg.read(src, dll)
+        target = pkg.exports[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, build_mod.SHOP_PACKAGE)
+            le1pkg.write_image(pkg, le1pkg.append_exports(pkg, {target.index: b"APTEST"}), out, dll)
+            again = le1pkg.read(out, dll)
+            for a, b in zip(pkg.exports, again.exports):
+                if a.index == target.index:
+                    self.assertEqual(bytes(again.image[b.offset:b.offset + b.size]), b"APTEST")
+                else:
+                    self.assertEqual((a.offset, a.size), (b.offset, b.size), a.name)
+
     def test_relayout(self) -> None:
         """Nothing added or replaced gives the same image; an added name reads back and the tables still parse."""
         dll = os.path.join(os.environ["LE1_GAME"], "Binaries", "Win64", "oo2core_8_win64.dll")

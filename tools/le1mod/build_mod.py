@@ -114,7 +114,8 @@ def add_empty_consequences(path: str, dll: str) -> list[int]:
     before = transitions.transition_ids(data, start)
     patched = with_empty_consequences(data, start)
     if patched != data:
-        le1pkg.write_image(pkg, le1pkg.relayout(pkg, [], {export.index: patched}), path, dll)
+        # Appended, not relaid out: the package holds textures whose bulk data offsets must not move.
+        le1pkg.write_image(pkg, le1pkg.append_exports(pkg, {export.index: patched}), path, dll)
         check = le1pkg.read(path, dll)
         written = check.find("BioStateEventMap", CONSEQUENCES[1])
         if bytes(check.image[written.offset:written.offset + written.size]) != patched:
