@@ -22,7 +22,7 @@ coordinates, squad, checks in logic), and look for "Archipelago" callouts on the
 
 **[Setup guide](worlds/mass_effect_le1/docs/setup_en.md)**: the full install steps.
 
-**Recommended: the setup app.** From the [latest release](../../releases/permalink/latest), download
+**Recommended: the setup app.** From the [releases page](../../releases) (the newest is at the top), download
 `MassEffectAPSetup-<version>-ME1.zip`, unzip it and run **Mass Effect AP Setup.exe**. It installs the world, the mod
 and the bridge (no Mod Manager needed, except once for the ASI loader and LE1 Autoload Enabler from its ASI Manager),
 writes your YAML, can run Generate, and launches the game and client. Uninstall puts every file it changed back.
